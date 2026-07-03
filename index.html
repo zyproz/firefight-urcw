@@ -820,8 +820,8 @@ function respawn(){
   pAmmo=pBag[pWeapon+'_a']||cd.ammo;pMags=pBag[pWeapon+'_m']||cd.mags;
   pGren=pBag.grenade||0;pSpecial=pBag[cd.sp]||0;pMedkit=1;
   isReloading=false;document.getElementById('rlbar').style.display='none';
-  if(myTeam==='RU'){px=(44+Math.random()*14)*T;py=(35+Math.random()*12)*T;}
-  else{px=(466+Math.random()*20)*T;py=(330+Math.random()*12)*T;}
+  if(myTeam==='RU'){px=(48+Math.random()*10)*T;py=(36+Math.random()*10)*T;}
+  else{px=(478+Math.random()*10)*T;py=(330+Math.random()*12)*T;}
   document.getElementById('ds').style.display='none';
   updateHUD();updateAbBtn();
 }
@@ -1441,9 +1441,7 @@ function drawBuildings(){
       ctx.fillStyle=inside?'rgba(80,70,55,0.85)':'rgba(75,85,65,0.9)';
       ctx.fillRect(sx,sy,b.pw,b.ph);
     }
-    ctx.strokeStyle=inside?'rgba(200,255,90,0.5)':'rgba(0,0,0,0.35)';
-    ctx.lineWidth=inside?2:1;
-    ctx.strokeRect(sx,sy,b.pw,b.ph);
+    if(inside){ctx.strokeStyle='rgba(200,255,90,0.5)';ctx.lineWidth=2;ctx.strokeRect(sx,sy,b.pw,b.ph);}
   });
 }
 
@@ -1482,7 +1480,7 @@ function _drawDroneAt(sx,sy,dir,team,alpha){
   ctx.save();
   ctx.globalAlpha=alpha||1;
   ctx.translate(sx,sy);
-  ctx.rotate(dir+Math.PI/2);
+  ctx.rotate(dir+Math.PI/2+Math.PI/4); // left side = front, +45° offset
   if(img&&img.complete&&img.naturalWidth>0){
     ctx.drawImage(img,-sz/2,-sz/2,sz,sz);
   }else{
