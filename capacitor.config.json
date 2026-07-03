@@ -1,7 +1,7 @@
 {
   "appId": "io.frontline.game",
   "appName": "frontline.io",
-  "webDir": ".",
+  "webDir": "www",
   "bundledWebRuntime": false,
   "server": {
     "androidScheme": "https"
