@@ -1,16 +1,15 @@
 {
-  "appId": "com.zyproz.firefighturcw",
-  "appName": "FireFight URCW",
+  "appId": "io.frontline.game",
+  "appName": "frontline.io",
   "webDir": ".",
+  "bundledWebRuntime": false,
   "server": {
     "androidScheme": "https"
   },
-  "plugins": {
-    "SplashScreen": {
-      "launchShowDuration": 1500,
-      "backgroundColor": "#060f06",
-      "splashFullScreen": true,
-      "splashImmersive": true
+  "android": {
+    "buildOptions": {
+      "keystorePath": "keystore.jks",
+      "keystoreAlias": "frontline"
     }
   }
 }
