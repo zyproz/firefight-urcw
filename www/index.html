@@ -384,32 +384,29 @@ function generateMap(){
   // ── BASES ───────────────────────────────────────────────────────────
   // RU base — NW corner (tile coords)
   fR(2,2,60,50,TL.CONCRETE);fR(5,5,54,44,TL.ASPHALT);
-  // Simple building blocks in base
-  [[8,8,14,10],[28,8,14,10],[8,22,14,10],[28,22,14,10]].forEach(([x,y,w,h])=>addBuilding(x,y,w,h,false));
   // Base walls
   fR(2,2,60,1,TL.WALL);fR(2,51,60,1,TL.WALL);fR(2,2,1,50,TL.WALL);fR(61,2,1,50,TL.WALL);
 
   // UA base — SE corner
   fR(438,298,60,50,TL.CONCRETE);fR(441,301,54,44,TL.ASPHALT);
-  [[444,304,14,10],[460,304,14,10],[444,318,14,10],[460,318,14,10]].forEach(([x,y,w,h])=>addBuilding(x,y,w,h,false));
   fR(438,298,60,1,TL.WALL);fR(438,347,60,1,TL.WALL);fR(438,298,1,50,TL.WALL);fR(497,298,1,50,TL.WALL);
 
-  // ── MAIN ROADS (horizontal + vertical arteries) ──────────────────
-  // Main E-W road
-  dRd(0,175,MW,175,6);
-  // N-S spines
-  dRd(100,0,100,MH,4);dRd(250,0,250,MH,5);dRd(400,0,400,MH,4);
+  // ── MAIN ROADS ──────────────────────────────────────────────────
+  // Main E-W highway (widened)
+  dRd(0,175,MW,175,10);
+  // N-S spines (widened)
+  dRd(100,0,100,MH,7);dRd(250,0,250,MH,9);dRd(400,0,400,MH,7);
   // Village inner roads
   const cx=~~(MW/2),cy=~~(MH/2);
-  dRd(cx-60,cy-30,cx+60,cy-30,3,TL.DIRT);
-  dRd(cx-60,cy,   cx+60,cy,   3,TL.DIRT);
-  dRd(cx-60,cy+30,cx+60,cy+30,3,TL.DIRT);
-  dRd(cx-30,cy-60,cx-30,cy+60,3,TL.DIRT);
-  dRd(cx,   cy-60,cx,   cy+60,3,TL.DIRT);
-  dRd(cx+30,cy-60,cx+30,cy+60,3,TL.DIRT);
+  dRd(cx-60,cy-30,cx+60,cy-30,5,TL.ROAD);
+  dRd(cx-60,cy,   cx+60,cy,   5,TL.ROAD);
+  dRd(cx-60,cy+30,cx+60,cy+30,5,TL.ROAD);
+  dRd(cx-30,cy-60,cx-30,cy+60,5,TL.ROAD);
+  dRd(cx,   cy-60,cx,   cy+60,5,TL.ROAD);
+  dRd(cx+30,cy-60,cx+30,cy+60,5,TL.ROAD);
   // Connect base to village
-  dRd(62,26,100,40,3,TL.DIRT);
-  dRd(400,310,438,320,3,TL.DIRT);
+  dRd(62,26,100,40,5,TL.ROAD);
+  dRd(400,310,438,320,5,TL.ROAD);
 
   // ── TRENCHES around center objectives ─────────────────────────────
   // OBJ A — left side
@@ -474,7 +471,7 @@ const RELOAD_DUR=2.2;
 // Score
 let tickets={UA:WIN_TIX,RU:WIN_TIX};
 // Others
-let remotes={},bullets=[],grenades=[],explosions=[],deadBodies=[],vehicles=[];
+let remotes={},bullets=[],grenades=[],explosions=[],deadBodies=[],remoteBodies=[],vehicles=[];
 let lootTarget=null,gameOn=false;
 let rangeActive=false,rangeT=0;
 // Inventory
@@ -811,7 +808,7 @@ function die(killer){
   if(kteam&&kteam!==myTeam)tickets[kteam]=Math.max(0,tickets[kteam]-1);
   if(tickets.UA<=0||tickets.RU<=0)checkWin();
   updateHUD();
-  chan&&chan.publish('died',{id:myId,x:px,y:py,team:myTeam,cls:myCls,name:myName,angle:pdir});
+  chan&&chan.publish('died',{id:myId,x:px,y:py,team:myTeam,cls:myCls,name:myName,angle:pdir,inv:{...pBag}});
 }
 
 function respawn(){
@@ -861,6 +858,7 @@ function updateCapture(dt){
 function checkLootTarget(){
   let closest=null,cd=Infinity;
   deadBodies.forEach(b=>{let d=Math.hypot(b.x-px,b.y-py);if(d<70&&d<cd){cd=d;closest=b;}});
+  remoteBodies.forEach(b=>{let d=Math.hypot(b.x-px,b.y-py);if(d<70&&d<cd){cd=d;closest=b;}});
   lootTarget=closest;
   document.getElementById('bloot').style.display=closest?'block':'none';
 }
@@ -974,9 +972,22 @@ function netConnect(){
     chan.subscribe('hit',m=>{let d=m.data;if(!d||d.target!==myId)return;takeDamage(d.dmg,d.from);});
     chan.subscribe('heal',m=>{let d=m.data;if(!d||d.target!==myId)return;php=Math.min(pMaxHp,php+d.amt);updateHUD();showNotif('💉 +'+d.amt+'PV!');});
     chan.subscribe('cap',m=>{let d=m.data;if(!d)return;let cp=CAPS.find(c=>c.id===d.id);if(cp){cp.team=d.team;cp.capProg=0;updateHUD();}});
-    chan.subscribe('died',m=>{let d=m.data;if(!d)return;if(remotes[d.id])Object.assign(remotes[d.id],{dead:true,deadX:d.x,deadY:d.y,deadAngle:d.angle,bloodR:30});});
+    chan.subscribe('died',m=>{
+      let d=m.data;if(!d)return;
+      if(remotes[d.id])Object.assign(remotes[d.id],{dead:true,deadX:d.x,deadY:d.y,deadAngle:d.angle,bloodR:30});
+      // Persist body for looting (survives respawn)
+      remoteBodies.push({x:d.x,y:d.y,team:d.team,cls:d.cls,name:d.name,
+        angle:d.angle||0,bloodR:30,inventory:d.inv||{},
+        remoteId:d.id,spawnedAt:Date.now()});
+    });
     chan.subscribe('tix',m=>{let d=m.data;if(d)tickets=d;updateHUD();});
     chan.subscribe('bye',m=>{let d=m.data;if(d&&d.id)delete remotes[d.id];});
+    chan.subscribe('drone_hit',m=>{
+      let d=m.data;if(!d||d.target!==myId||!droneActive)return;
+      droneActive=false;chan&&chan.publish('drone',{id:myId,active:false});
+      spawnExplosion(droneX,droneY,90,30,d.from,null);
+      showNotif('💥 Drone détruit par ennemi!');
+    });
     chan.subscribe('drone',m=>{
       let d=m.data;if(!d||d.id===myId)return;
       if(!remotes[d.id])remotes[d.id]={};
@@ -1051,8 +1062,11 @@ function drawTerrain(){
       let h=hashXY(tx,ty);
       switch(tl){
         case TL.ROAD:
-          ctx.fillStyle='rgba(80,70,60,0.7)';ctx.fillRect(sx,sy,T+1,T+1);
-          if(h%12===0){ctx.fillStyle='rgba(200,180,100,0.15)';ctx.fillRect(sx+T/2-1,sy,2,T);}
+          ctx.fillStyle='rgba(68,62,52,0.82)';ctx.fillRect(sx,sy,T+1,T+1);
+          // Road line markings
+          if(h%18===0){ctx.fillStyle='rgba(240,220,100,0.22)';ctx.fillRect(sx+T/2-1,sy,2,T);}
+          // Subtle texture
+          if(h%5===0){ctx.fillStyle='rgba(50,45,38,0.3)';ctx.fillRect(sx+1,sy+3,T-2,2);}
           break;
         case TL.ASPHALT:
           ctx.fillStyle='rgba(50,45,40,0.75)';ctx.fillRect(sx,sy,T+1,T+1);break;
@@ -1207,6 +1221,12 @@ function drawPlayers(){
     if(Math.abs(sx)>W+50||Math.abs(sy)>H+50)return;
     drawSoldierSprite(sx,sy,r.deadAngle||0,r.team,r.cls,r.team===myTeam,r.name||'?',0,false,false,false,true,false,0,r.deathPose||~~(Math.random()*6),r.bloodR||30);
   });
+  // Remote dead bodies (persistent, survives respawn)
+  remoteBodies.forEach(b=>{
+    let sx=b.x-camX,sy=b.y-camY;
+    if(Math.abs(sx)>W+50||Math.abs(sy)>H+50)return;
+    drawSoldierSprite(sx,sy,b.angle,b.team,b.cls,b.team===myTeam,b.name,0,false,false,false,true,false,0,5,b.bloodR||30);
+  });
   // Local dead bodies
   deadBodies.forEach(b=>{
     let sx=b.x-camX,sy=b.y-camY;
@@ -1259,7 +1279,7 @@ function drawVehicles(){
 function drawVehicleSpr(sx,sy,dir,type,team,hp,driver,dname){
   let def=VDEFS[type];if(!def)return;
   let imgKey=team==='UA'?'veh_cross_ua':'veh_z_ru';
-  drawVehicleImg(imgKey,sx,sy,dir+Math.PI/2,def.w,def.h);
+  drawVehicleImg(imgKey,sx,sy,dir+Math.PI/2,~~(def.w*1.4),~~(def.h*1.4));
   if(hp<def.hp){
     let pct=hp/def.hp,bw=36;
     ctx.fillStyle='rgba(0,0,0,0.7)';ctx.fillRect(sx-bw/2,sy+def.h/2+4,bw,4);
@@ -1312,10 +1332,32 @@ function drawBulletsFn(dt){
     }
     let sx=b.x-camX,sy=b.y-camY;
     if(sx<-10||sx>W+10||sy<-10||sy>H+10){bullets.splice(i,1);continue;}
+    // Hit check — MY drone (enemy bullets)
+    if(b.owner!==myId&&b.team!==myTeam&&droneActive){
+      if(Math.hypot(b.x-droneX,b.y-droneY)<30){
+        droneActive=false;
+        chan&&chan.publish('drone',{id:myId,active:false});
+        spawnExplosion(droneX,droneY,80,30,b.owner,b.team);
+        showNotif('💥 Drone détruit!');
+        bullets.splice(i,1);continue;
+      }
+    }
     // Hit check — local player
     if(b.owner!==myId&&b.team!==myTeam&&!pDead&&Math.hypot(b.x-px,b.y-py)<12){
       takeDamage(b.dmg,b.owner);chan&&chan.publish('hit',{target:myId,from:b.owner,dmg:b.dmg});
       bullets.splice(i,1);continue;
+    }
+    // Hit check — enemy DRONE (own shots)
+    if(b.owner===myId){
+      let droneHit=false;
+      Object.entries(remotes).forEach(([rid,r])=>{
+        if(droneHit||!r.droneActive)return;
+        if(Math.hypot(b.x-(r.droneX||0),b.y-(r.droneY||0))<30){
+          chan&&chan.publish('drone_hit',{target:rid,from:myId});
+          spawnExplosion(b.x,b.y,60,20,myId,myTeam);droneHit=true;
+        }
+      });
+      if(droneHit){bullets.splice(i,1);continue;}
     }
     // Hit check — remotes (own shots)
     if(b.owner===myId){
@@ -1326,9 +1368,19 @@ function drawBulletsFn(dt){
       });
       if(hit){bullets.splice(i,1);continue;}
     }
-    ctx.fillStyle=b.col||'#FFEE44';ctx.beginPath();ctx.arc(sx,sy,b.r||2,0,Math.PI*2);ctx.fill();
-    ctx.strokeStyle='rgba(255,220,100,0.3)';ctx.lineWidth=1.5;
-    ctx.beginPath();ctx.moveTo(sx,sy);ctx.lineTo(sx-b.dx*.04,sy-b.dy*.04);ctx.stroke();
+    // Thin realistic bullet trace
+    let _bspd=Math.hypot(b.dx,b.dy),_bdir=Math.atan2(b.dy,b.dx);
+    let _tail=Math.min(_bspd*.05,22);
+    let _tx=sx-Math.cos(_bdir)*_tail,_ty=sy-Math.sin(_bdir)*_tail;
+    ctx.save();
+    let _grad=ctx.createLinearGradient(_tx,_ty,sx,sy);
+    _grad.addColorStop(0,'rgba(255,220,80,0)');
+    _grad.addColorStop(0.6,'rgba(255,200,60,0.4)');
+    _grad.addColorStop(1,b.col||'#FFE060');
+    ctx.strokeStyle=_grad;ctx.lineWidth=b.r>2?1.5:0.9;ctx.lineCap='round';
+    ctx.shadowColor=b.col||'#FFD040';ctx.shadowBlur=2;
+    ctx.beginPath();ctx.moveTo(_tx,_ty);ctx.lineTo(sx,sy);ctx.stroke();
+    ctx.restore();
   }
 }
 
@@ -1448,27 +1500,62 @@ function drawBuildings(){
 function initBuildings(){
   BUILDINGS.length=0;
   const cx=WW/2, cy=WH/2;
-  const blds=[
-    {x:-660,y:-180,w:90,h:110,t:0},{x:-540,y:-200,w:75,h:95,t:1},{x:-460,y:-180,w:85,h:105,t:2},
-    {x:-660,y:-80,w:75,h:95,t:3},{x:-555,y:-80,w:80,h:100,t:4},{x:-455,y:-80,w:75,h:95,t:5},
-    {x:-660,y:65,w:80,h:100,t:0},{x:-540,y:65,w:85,h:105,t:1},{x:-455,y:65,w:75,h:95,t:2},
-    {x:-660,y:170,w:85,h:105,t:3},{x:-540,y:170,w:75,h:95,t:4},
-    {x:-200,y:-295,w:85,h:105,t:5},{x:-95,y:-295,w:75,h:95,t:0},{x:-200,y:-180,w:85,h:105,t:1},
-    {x:-95,y:-180,w:80,h:100,t:2},{x:-30,y:-295,w:70,h:90,t:3},{x:-30,y:-180,w:70,h:90,t:4},
-    {x:70,y:-295,w:80,h:100,t:5},{x:175,y:-295,w:75,h:95,t:0},{x:70,y:-180,w:85,h:105,t:1},
-    {x:175,y:-180,w:80,h:100,t:2},{x:-200,y:65,w:85,h:105,t:3},{x:-95,y:65,w:80,h:100,t:4},
-    {x:-30,y:65,w:70,h:90,t:5},{x:70,y:65,w:85,h:105,t:0},{x:175,y:65,w:75,h:95,t:1},
-    {x:-200,y:180,w:80,h:100,t:2},{x:-95,y:180,w:75,h:95,t:3},{x:-30,y:180,w:70,h:90,t:4},
-    {x:70,y:180,w:80,h:100,t:5},{x:175,y:180,w:75,h:95,t:0},{x:-200,y:290,w:75,h:95,t:1},
-    {x:-95,y:290,w:80,h:100,t:2},{x:70,y:290,w:75,h:95,t:3},{x:175,y:290,w:85,h:105,t:4},
-    {x:460,y:-180,w:90,h:110,t:5},{x:545,y:-200,w:75,h:95,t:0},{x:615,y:-180,w:85,h:105,t:1},
-    {x:460,y:-80,w:75,h:95,t:2},{x:545,y:-80,w:80,h:100,t:3},{x:615,y:-80,w:75,h:95,t:4},
-    {x:460,y:65,w:80,h:100,t:5},{x:545,y:65,w:85,h:105,t:0},{x:615,y:65,w:75,h:95,t:1},
-    {x:460,y:170,w:85,h:105,t:2},{x:545,y:170,w:75,h:95,t:3},
-    {x:-345,y:-300,w:70,h:90,t:4},{x:355,y:-300,w:70,h:90,t:5},
-    {x:-345,y:290,w:70,h:90,t:0},{x:355,y:290,w:70,h:90,t:1},
+  let id=0;
+  function addB(rx,ry,w,h,t){BUILDINGS.push({id:id++,t:t%6,px:cx+rx,py:cy+ry,pw:w,ph:h});}
+
+  // ── VILLAGE CENTRE (dense city grid) ────────────────────────────
+  const village=[
+    [-660,-180,90,110],[-540,-200,75,95],[-460,-180,85,105],
+    [-660,-80,75,95],[-555,-80,80,100],[-455,-80,75,95],
+    [-660,65,80,100],[-540,65,85,105],[-455,65,75,95],
+    [-660,170,85,105],[-540,170,75,95],
+    [-200,-295,85,105],[-95,-295,75,95],[-200,-180,85,105],
+    [-95,-180,80,100],[-30,-295,70,90],[-30,-180,70,90],
+    [70,-295,80,100],[175,-295,75,95],[70,-180,85,105],
+    [175,-180,80,100],[-200,65,85,105],[-95,65,80,100],
+    [-30,65,70,90],[70,65,85,105],[175,65,75,95],
+    [-200,180,80,100],[-95,180,75,95],[-30,180,70,90],
+    [70,180,80,100],[175,180,75,95],[-200,290,75,95],
+    [-95,290,80,100],[70,290,75,95],[175,290,85,105],
+    [460,-180,90,110],[545,-200,75,95],[615,-180,85,105],
+    [460,-80,75,95],[545,-80,80,100],[615,-80,75,95],
+    [460,65,80,100],[545,65,85,105],[615,65,75,95],
+    [460,170,85,105],[545,170,75,95],
+    [-345,-300,70,90],[355,-300,70,90],
+    [-345,290,70,90],[355,290,70,90],
   ];
-  blds.forEach((b,i)=>BUILDINGS.push({id:i,t:b.t,px:cx+b.x,py:cy+b.y,pw:b.w,ph:b.h}));
+  village.forEach(([x,y,w,h],i)=>addB(x,y,w,h,i));
+
+  // ── BUILDINGS ALONG MAIN E-W ROAD (y=0 rel = tile 175 = cy) ────
+  // Road width = 10 tiles = 80px, so houses start at ±(50+h/2) from cy
+  // North side (ry negative = above road)
+  const ewNorth=-135, ewSouth=135;
+  // West section: x from -1380 to -740 (tiles 75-175 west of center)
+  for(let rx=-1380;rx<-720;rx+=140){
+    let w=70+~~(Math.abs(rx)*0.02%30),h=85+~~(rx*0.01%20);
+    addB(rx+w/2,ewNorth,w,h,id);addB(rx+w/2,ewSouth,w,h,id+1);
+    if(rx+75<-720){addB(rx+w+15,ewNorth,55,75,id+2);addB(rx+w+15,ewSouth,55,75,id+3);}
+  }
+  // East section: x from 740 to 1380
+  for(let rx=740;rx<1380;rx+=140){
+    let w=70+~~(rx*0.02%30),h=85+~~(rx*0.01%20);
+    addB(rx+w/2,ewNorth,w,h,id);addB(rx+w/2,ewSouth,w,h,id+1);
+    if(rx+75<1380){addB(rx+w+15,ewNorth,55,75,id+2);addB(rx+w+15,ewSouth,55,75,id+3);}
+  }
+
+  // ── BUILDINGS ALONG N-S ROADS ────────────────────────────────────
+  // Road at x=100 tiles → rel = (100*8)-cx = 800-2000 = -1200
+  // Road at x=400 tiles → rel = 3200-2000 = 1200
+  const nsW=-1200, nsE=1200;
+  const nsRoadHalf=56; // 7 tiles * 8px / 2
+  // Left of road, right of road
+  for(let ry=-300;ry<300;ry+=120){
+    let w=70,h=90+~~(ry*0.03%25);
+    addB(nsW-nsRoadHalf-40,ry,w,h,id);   // west of x=100 road
+    addB(nsW+nsRoadHalf+40,ry,w,h,id+1); // east of x=100 road
+    addB(nsE-nsRoadHalf-40,ry,w,h,id+2); // west of x=400 road
+    addB(nsE+nsRoadHalf+40,ry,w,h,id+3); // east of x=400 road
+  }
 }
 
 
@@ -1567,6 +1654,13 @@ function loop(ts){
     if(rangeActive){rangeT-=dt;if(rangeT<=0)rangeActive=false;}
     updateCapture(dt);
     checkLootTarget();
+    // Clean up looted/expired remote bodies
+    const _now=Date.now();
+    remoteBodies=remoteBodies.filter(b=>{
+      if(_now-b.spawnedAt>90000)return false; // 90s TTL
+      if(b.inventory&&Object.values(b.inventory).every(v=>v===0))return false; // fully looted
+      return true;
+    });
   }
   // Respawn timer (must be OUTSIDE if(!pDead) block)
   if(pDead){pRespawnT-=dt;if(pRespawnT<=0)respawn();document.getElementById('dtt').textContent=Math.ceil(Math.max(0,pRespawnT));}
