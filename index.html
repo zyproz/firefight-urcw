@@ -1476,11 +1476,11 @@ function initBuildings(){
 let _droneAngle=0;
 function _drawDroneAt(sx,sy,dir,team,alpha){
   let img=IMG.fpv_drone;
-  let sz=80; // display size px
+  let sz=50; // display size px
   ctx.save();
   ctx.globalAlpha=alpha||1;
   ctx.translate(sx,sy);
-  ctx.rotate(dir+Math.PI/2+Math.PI/4); // left side = front, +45° offset
+  ctx.rotate(dir+Math.PI); // left side of PNG = front, rotate 180° offset
   if(img&&img.complete&&img.naturalWidth>0){
     ctx.drawImage(img,-sz/2,-sz/2,sz,sz);
   }else{
