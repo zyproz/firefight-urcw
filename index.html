@@ -1001,7 +1001,7 @@ function takeDamage(amt,from){
 function die(killer){
   pDead=true;
   _uaDeathFrame=~~(Math.random()*6); // random UA death pose
-  // Ticket décrémenté au respawn (pas à la mort)pRespawnT=RESP_T;isDying=true;dyingFr=~~(Math.random()*6);dyingT=0;
+  pRespawnT=RESP_T;isDying=true;dyingFr=~~(Math.random()*6);dyingT=0; // respawn timer + dying anim
   if(pInVehicle){pInVehicle.driver=null;pInVehicle=null;}
   // Own corpse — stored permanently, survives respawn
   let _corpseData={cid:myId+'_'+Date.now(),x:px,y:py,team:myTeam,cls:myCls,name:myName,
@@ -1019,28 +1019,9 @@ function die(killer){
 }
 
 // Respawn countdown — enables button after 5s, called from pDead timer
+// respawn() called by old code — redirect to button enable (doRespawn handles actual spawn)
 function respawn(){
-  // Start countdown, enable button after 5s
-  let _cd=5;
-  let _btn=document.getElementById('respawnBtn');
-  let _dtt=document.getElementById('dtt');
-  if(_btn)_btn.disabled=true;
-  let _iv=setInterval(()=>{
-    _cd--;
-    if(_dtt)_dtt.textContent=_cd>0?'Respawn disponible dans '+_cd+'s':'Prêt !';
-    if(_cd<=0){
-      clearInterval(_iv);
-      if(_btn){
-        _btn.disabled=false;
-        _btn.style.background='#1A3A1A';
-        _btn.style.color='#44FF44';
-        _btn.style.borderColor='#44FF44';
-        _btn.style.cursor='pointer';
-      }
-    }
-  },1000);
-  // Immediately mark ready in timer if RESP_T already elapsed
-  if(_cd<=0&&_btn){_btn.disabled=false;_btn.style.background='#1A3A1A';}
+  // Handled by the loop timer now — this function kept for compatibility
 }
 
 function doRespawn(){
@@ -1060,6 +1041,7 @@ function doRespawn(){
   else{px=WW-180+~~(Math.random()*60);py=WH/2+_sOff;}
   pdir=myTeam==='RU'?0:Math.PI;
   document.getElementById('ds').style.display='none';
+  _respawnReady=false; // reset for next death
   // Reset respawn button for next death
   let _btn=document.getElementById('respawnBtn');
   if(_btn){_btn.disabled=true;_btn.style.background='#222';_btn.style.color='#888';
@@ -2196,7 +2178,19 @@ function loop(ts){
     // Corps persistants — pas de TTL, restent toute la partie
   }
   // Respawn timer (must be OUTSIDE if(!pDead) block)
-  if(pDead){pRespawnT-=dt;if(pRespawnT<=0)respawn();document.getElementById('dtt').textContent=Math.ceil(Math.max(0,pRespawnT));}
+  if(pDead){
+    pRespawnT-=dt;
+    let _dtt2=document.getElementById('dtt');
+    if(pRespawnT>0){
+      if(_dtt2)_dtt2.textContent='Respawn dans '+Math.ceil(pRespawnT)+'s';
+    }else if(!_respawnReady){
+      _respawnReady=true;
+      if(_dtt2)_dtt2.textContent='Prêt !';
+      let _rb=document.getElementById('respawnBtn');
+      if(_rb){_rb.disabled=false;_rb.style.background='#1A3A1A';
+        _rb.style.color='#44FF44';_rb.style.borderColor='#44FF44';_rb.style.cursor='pointer';}
+    }
+  }
 
   vehicles.forEach(v=>{if(!v.available&&v.respawnT>0){v.respawnT-=dt;if(v.respawnT<=0){v.available=true;v.hp=VDEFS[v.type].hp;v.wx=v.spawnX;v.wy=v.spawnY;}}});
 
