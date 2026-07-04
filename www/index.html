@@ -391,20 +391,20 @@ function generateMap(){
   fR(438,298,60,50,TL.CONCRETE);fR(441,301,54,44,TL.ASPHALT);
   fR(438,298,60,1,TL.WALL);fR(438,347,60,1,TL.WALL);fR(438,298,1,50,TL.WALL);fR(497,298,1,50,TL.WALL);
 
-  // ── MAIN ROADS ──────────────────────────────────────────────────
-  // Main E-W highway (widened)
-  dRd(0,175,MW,175,10);
-  // N-S spines (widened)
-  dRd(100,0,100,MH,7);dRd(250,0,250,MH,9);dRd(400,0,400,MH,7);
-  // Village inner roads
+  // ── ROUTES ─────────────────────────────────────────────────────
   const cx=~~(MW/2),cy=~~(MH/2);
+  // Route E-O principale (élargie)
+  dRd(0,175,MW,175,10);
+  // Routes N-S (élargies)
+  dRd(100,0,100,MH,7);dRd(250,0,250,MH,9);dRd(400,0,400,MH,7);
+  // Routes internes village
   dRd(cx-60,cy-30,cx+60,cy-30,5,TL.ROAD);
   dRd(cx-60,cy,   cx+60,cy,   5,TL.ROAD);
   dRd(cx-60,cy+30,cx+60,cy+30,5,TL.ROAD);
   dRd(cx-30,cy-60,cx-30,cy+60,5,TL.ROAD);
   dRd(cx,   cy-60,cx,   cy+60,5,TL.ROAD);
   dRd(cx+30,cy-60,cx+30,cy+60,5,TL.ROAD);
-  // Connect base to village
+  // Connexions bases-village
   dRd(62,26,100,40,5,TL.ROAD);
   dRd(400,310,438,320,5,TL.ROAD);
 
@@ -591,12 +591,15 @@ document.addEventListener('touchmove',e=>{
       let dx=t.clientX-jOX,dy=t.clientY-jOY,d=Math.sqrt(dx*dx+dy*dy);
       if(d>8){
         jAX=Math.max(-1,Math.min(1,dx/JR));jAY=Math.max(-1,Math.min(1,dy/JR));
-        pdir=Math.atan2(dy,dx);
+        // Ne change la direction que si pas de visée active
+        if(aimTId===-1)pdir=Math.atan2(dy,dx);
         let kr=Math.min(d,JR);
-        jk.style.left=(65+Math.cos(pdir)*kr)+'px';
-        jk.style.top=(65+Math.sin(pdir)*kr)+'px';
+        jk.style.left=(65+Math.cos(aimTId===-1?pdir:Math.atan2(dy,dx))*kr)+'px';
+        jk.style.top=(65+Math.sin(aimTId===-1?pdir:Math.atan2(dy,dx))*kr)+'px';
       }else{jAX=0;jAY=0;}
     }
+    // Suivi du touch de visée
+    if(t.identifier===aimTId){aimTX=t.clientX;aimTY=t.clientY;}
   }
 },{passive:false});
 document.addEventListener('touchend',e=>{
@@ -605,6 +608,7 @@ document.addEventListener('touchend',e=>{
       jActive=false;jAX=0;jAY=0;
       jk.style.left='65px';jk.style.top='65px';
     }
+    if(t.identifier===aimTId){aimTId=-1;shooting=false;}
   }
 });
 // Desktop mouse
@@ -619,9 +623,10 @@ document.addEventListener('keyup',e=>keys[e.code]=false);
 
 // ── FIRE ─────────────────────────────────────────────────────────
 let shooting=false;
+let aimTId=-1,aimTX=0,aimTY=0; // touch de visée (pouce droit)
+// Cacher le bouton feu (remplacé par touch-to-aim)
 const bfire=document.getElementById('bfire');
-bfire.addEventListener('touchstart',e=>{e.preventDefault();shooting=true;if(!aCtx)initAudio();},{passive:false});
-bfire.addEventListener('touchend',e=>{e.preventDefault();shooting=false;},{passive:false});
+bfire.style.display='none';
 bfire.addEventListener('mousedown',()=>shooting=true);
 bfire.addEventListener('mouseup',()=>shooting=false);
 document.getElementById('bgren').addEventListener('touchstart',e=>{e.preventDefault();throwGren();},{passive:false});
@@ -635,6 +640,19 @@ document.getElementById('bveh').addEventListener('click',tryVehicle);
 document.getElementById('bmap').addEventListener('click',toggleMap);
 document.getElementById('binv').addEventListener('click',()=>openInv(false));
 document.getElementById('bloot').addEventListener('touchend',e=>{e.preventDefault();if(lootTarget)openInv(true,lootTarget);},{passive:false});
+// Touch-to-aim: tout touch qui n'est pas le joystick ni un bouton UI = viser et tirer
+document.addEventListener('touchstart',e=>{
+  for(let t of e.changedTouches){
+    if(!gameOn||pDead)continue;
+    if(t.identifier===jId)continue;
+    // Ignorer les éléments UI
+    let el=t.target;
+    if(el.closest('#joy,#bgren,#bab,#bheal,#bveh,#binv,#bloot,#bmap,#mm,#inv,#ds,#notif,#hint'))continue;
+    aimTId=t.identifier;aimTX=t.clientX;aimTY=t.clientY;
+    shooting=true;
+    if(!aCtx)initAudio();
+  }
+},{passive:true});
 document.getElementById('bloot').addEventListener('click',()=>{if(lootTarget)openInv(true,lootTarget);});
 
 function fireBullet(){
@@ -974,19 +992,16 @@ function netConnect(){
     chan.subscribe('cap',m=>{let d=m.data;if(!d)return;let cp=CAPS.find(c=>c.id===d.id);if(cp){cp.team=d.team;cp.capProg=0;updateHUD();}});
     chan.subscribe('died',m=>{
       let d=m.data;if(!d)return;
-      if(remotes[d.id])Object.assign(remotes[d.id],{dead:true,deadX:d.x,deadY:d.y,deadAngle:d.angle,bloodR:30});
-      // Persist body for looting (survives respawn)
-      remoteBodies.push({x:d.x,y:d.y,team:d.team,cls:d.cls,name:d.name,
-        angle:d.angle||0,bloodR:30,inventory:d.inv||{},
-        remoteId:d.id,spawnedAt:Date.now()});
+      if(remotes[d.id])Object.assign(remotes[d.id],{dead:true,deadX:d.x,deadY:d.y,deadAngle:d.angle||0,bloodR:30});
+      remoteBodies.push({x:d.x,y:d.y,team:d.team,cls:d.cls,name:d.name||'?',
+        angle:d.angle||0,bloodR:30,inventory:d.inv||{},spawnedAt:Date.now()});
     });
     chan.subscribe('tix',m=>{let d=m.data;if(d)tickets=d;updateHUD();});
     chan.subscribe('bye',m=>{let d=m.data;if(d&&d.id)delete remotes[d.id];});
     chan.subscribe('drone_hit',m=>{
       let d=m.data;if(!d||d.target!==myId||!droneActive)return;
       droneActive=false;chan&&chan.publish('drone',{id:myId,active:false});
-      spawnExplosion(droneX,droneY,90,30,d.from,null);
-      showNotif('💥 Drone détruit par ennemi!');
+      spawnExplosion(droneX,droneY,80,30,d.from,null);showNotif('💥 Drone abattu!');
     });
     chan.subscribe('drone',m=>{
       let d=m.data;if(!d||d.id===myId)return;
@@ -1062,11 +1077,8 @@ function drawTerrain(){
       let h=hashXY(tx,ty);
       switch(tl){
         case TL.ROAD:
-          ctx.fillStyle='rgba(68,62,52,0.82)';ctx.fillRect(sx,sy,T+1,T+1);
-          // Road line markings
-          if(h%18===0){ctx.fillStyle='rgba(240,220,100,0.22)';ctx.fillRect(sx+T/2-1,sy,2,T);}
-          // Subtle texture
-          if(h%5===0){ctx.fillStyle='rgba(50,45,38,0.3)';ctx.fillRect(sx+1,sy+3,T-2,2);}
+          ctx.fillStyle='rgba(80,70,60,0.7)';ctx.fillRect(sx,sy,T+1,T+1);
+          if(h%12===0){ctx.fillStyle='rgba(200,180,100,0.15)';ctx.fillRect(sx+T/2-1,sy,2,T);}
           break;
         case TL.ASPHALT:
           ctx.fillStyle='rgba(50,45,40,0.75)';ctx.fillRect(sx,sy,T+1,T+1);break;
@@ -1221,7 +1233,7 @@ function drawPlayers(){
     if(Math.abs(sx)>W+50||Math.abs(sy)>H+50)return;
     drawSoldierSprite(sx,sy,r.deadAngle||0,r.team,r.cls,r.team===myTeam,r.name||'?',0,false,false,false,true,false,0,r.deathPose||~~(Math.random()*6),r.bloodR||30);
   });
-  // Remote dead bodies (persistent, survives respawn)
+  // Corps distants (persistent après respawn)
   remoteBodies.forEach(b=>{
     let sx=b.x-camX,sy=b.y-camY;
     if(Math.abs(sx)>W+50||Math.abs(sy)>H+50)return;
@@ -1332,32 +1344,28 @@ function drawBulletsFn(dt){
     }
     let sx=b.x-camX,sy=b.y-camY;
     if(sx<-10||sx>W+10||sy<-10||sy>H+10){bullets.splice(i,1);continue;}
-    // Hit check — MY drone (enemy bullets)
-    if(b.owner!==myId&&b.team!==myTeam&&droneActive){
-      if(Math.hypot(b.x-droneX,b.y-droneY)<30){
-        droneActive=false;
-        chan&&chan.publish('drone',{id:myId,active:false});
-        spawnExplosion(droneX,droneY,80,30,b.owner,b.team);
-        showNotif('💥 Drone détruit!');
-        bullets.splice(i,1);continue;
-      }
+    // Check si balle ennemie touche MON drone
+    if(b.owner!==myId&&b.team!==myTeam&&droneActive&&Math.hypot(b.x-droneX,b.y-droneY)<30){
+      droneActive=false;chan&&chan.publish('drone',{id:myId,active:false});
+      spawnExplosion(droneX,droneY,75,25,b.owner,b.team);
+      showNotif('💥 Drone détruit!');bullets.splice(i,1);continue;
+    }
+    // Check si mes balles touchent un drone ennemi
+    if(b.owner===myId){
+      let dh=false;
+      Object.entries(remotes).forEach(([rid,r])=>{
+        if(dh||!r.droneActive)return;
+        if(Math.hypot(b.x-(r.droneX||0),b.y-(r.droneY||0))<30){
+          chan&&chan.publish('drone_hit',{target:rid,from:myId});
+          spawnExplosion(b.x,b.y,60,20,myId,myTeam);dh=true;
+        }
+      });
+      if(dh){bullets.splice(i,1);continue;}
     }
     // Hit check — local player
     if(b.owner!==myId&&b.team!==myTeam&&!pDead&&Math.hypot(b.x-px,b.y-py)<12){
       takeDamage(b.dmg,b.owner);chan&&chan.publish('hit',{target:myId,from:b.owner,dmg:b.dmg});
       bullets.splice(i,1);continue;
-    }
-    // Hit check — enemy DRONE (own shots)
-    if(b.owner===myId){
-      let droneHit=false;
-      Object.entries(remotes).forEach(([rid,r])=>{
-        if(droneHit||!r.droneActive)return;
-        if(Math.hypot(b.x-(r.droneX||0),b.y-(r.droneY||0))<30){
-          chan&&chan.publish('drone_hit',{target:rid,from:myId});
-          spawnExplosion(b.x,b.y,60,20,myId,myTeam);droneHit=true;
-        }
-      });
-      if(droneHit){bullets.splice(i,1);continue;}
     }
     // Hit check — remotes (own shots)
     if(b.owner===myId){
@@ -1368,19 +1376,13 @@ function drawBulletsFn(dt){
       });
       if(hit){bullets.splice(i,1);continue;}
     }
-    // Thin realistic bullet trace
-    let _bspd=Math.hypot(b.dx,b.dy),_bdir=Math.atan2(b.dy,b.dx);
-    let _tail=Math.min(_bspd*.05,22);
-    let _tx=sx-Math.cos(_bdir)*_tail,_ty=sy-Math.sin(_bdir)*_tail;
-    ctx.save();
-    let _grad=ctx.createLinearGradient(_tx,_ty,sx,sy);
-    _grad.addColorStop(0,'rgba(255,220,80,0)');
-    _grad.addColorStop(0.6,'rgba(255,200,60,0.4)');
-    _grad.addColorStop(1,b.col||'#FFE060');
-    ctx.strokeStyle=_grad;ctx.lineWidth=b.r>2?1.5:0.9;ctx.lineCap='round';
-    ctx.shadowColor=b.col||'#FFD040';ctx.shadowBlur=2;
-    ctx.beginPath();ctx.moveTo(_tx,_ty);ctx.lineTo(sx,sy);ctx.stroke();
-    ctx.restore();
+    let _bs=Math.hypot(b.dx,b.dy),_bd=Math.atan2(b.dy,b.dx);
+    let _bt=Math.min(_bs*.05,20),_bx=sx-Math.cos(_bd)*_bt,_by=sy-Math.sin(_bd)*_bt;
+    ctx.save();let _bg=ctx.createLinearGradient(_bx,_by,sx,sy);
+    _bg.addColorStop(0,'rgba(255,210,60,0)');_bg.addColorStop(1,b.col||'#FFE040');
+    ctx.strokeStyle=_bg;ctx.lineWidth=b.r>2?1.4:0.8;ctx.lineCap='round';
+    ctx.shadowColor='#FFD040';ctx.shadowBlur=3;
+    ctx.beginPath();ctx.moveTo(_bx,_by);ctx.lineTo(sx,sy);ctx.stroke();ctx.restore();
   }
 }
 
@@ -1420,11 +1422,11 @@ function drawMinimap(){
     mctx.beginPath();mctx.arc(cp.wx/sx,cp.wy/sy,3,0,Math.PI*2);mctx.fill();
     mctx.fillStyle='#FFD700';mctx.font='6px Arial';mctx.textAlign='center';mctx.fillText(cp.id,cp.wx/sx,cp.wy/sy-4);
   });
-  Object.values(remotes).forEach(r=>{if(r.dead)return;mctx.fillStyle=r.team==='UA'?'#5599FF':'#FF5555';mctx.beginPath();mctx.arc(r.x/sx,r.y/sy,2,0,Math.PI*2);mctx.fill();});
+  // Alliés uniquement (ennemis masqués)
+  Object.values(remotes).forEach(r=>{if(r.dead||r.team!==myTeam)return;mctx.fillStyle='#88DDFF';mctx.beginPath();mctx.arc(r.x/sx,r.y/sy,2,0,Math.PI*2);mctx.fill();});
+  // Joueur local — rond blanc uniquement (sans rectangle ni cercle externe)
   let px2=(pInVehicle?pInVehicle.wx:px)/sx,py2=(pInVehicle?pInVehicle.wy:py)/sy;
   mctx.fillStyle='#FFF';mctx.beginPath();mctx.arc(px2,py2,3,0,Math.PI*2);mctx.fill();
-  mctx.strokeStyle='rgba(200,255,90,0.5)';mctx.lineWidth=1;mctx.beginPath();mctx.arc(px2,py2,4,0,Math.PI*2);mctx.stroke();
-  mctx.strokeStyle='rgba(255,255,255,0.2)';mctx.lineWidth=1;mctx.strokeRect(camX/sx,camY/sy,W/sx,H/sy);
 }
 
 function drawBigMap(){
@@ -1500,62 +1502,80 @@ function drawBuildings(){
 function initBuildings(){
   BUILDINGS.length=0;
   const cx=WW/2, cy=WH/2;
-  let id=0;
-  function addB(rx,ry,w,h,t){BUILDINGS.push({id:id++,t:t%6,px:cx+rx,py:cy+ry,pw:w,ph:h});}
+  let _bid=0;
+  // Ajouter un bâtiment aux coordonnées relatives (rx,ry) par rapport au centre
+  function addB(rx,ry,w,h,t){
+    BUILDINGS.push({id:_bid++,t:t%6,px:cx+rx,py:cy+ry,pw:w,ph:h});
+  }
 
-  // ── VILLAGE CENTRE (dense city grid) ────────────────────────────
-  const village=[
-    [-660,-180,90,110],[-540,-200,75,95],[-460,-180,85,105],
-    [-660,-80,75,95],[-555,-80,80,100],[-455,-80,75,95],
-    [-660,65,80,100],[-540,65,85,105],[-455,65,75,95],
-    [-660,170,85,105],[-540,170,75,95],
-    [-200,-295,85,105],[-95,-295,75,95],[-200,-180,85,105],
-    [-95,-180,80,100],[-30,-295,70,90],[-30,-180,70,90],
-    [70,-295,80,100],[175,-295,75,95],[70,-180,85,105],
-    [175,-180,80,100],[-200,65,85,105],[-95,65,80,100],
-    [-30,65,70,90],[70,65,85,105],[175,65,75,95],
-    [-200,180,80,100],[-95,180,75,95],[-30,180,70,90],
-    [70,180,80,100],[175,180,75,95],[-200,290,75,95],
-    [-95,290,80,100],[70,290,75,95],[175,290,85,105],
-    [460,-180,90,110],[545,-200,75,95],[615,-180,85,105],
-    [460,-80,75,95],[545,-80,80,100],[615,-80,75,95],
-    [460,65,80,100],[545,65,85,105],[615,65,75,95],
-    [460,170,85,105],[545,170,75,95],
-    [-345,-300,70,90],[355,-300,70,90],
-    [-345,290,70,90],[355,290,70,90],
+  // ── Village centre (grille urbaine) ─────────────────────────────
+  [
+    [-660,-180,90,110,0],[-540,-200,75,95,1],[-460,-180,85,105,2],
+    [-660,-80,75,95,3],[-555,-80,80,100,4],[-455,-80,75,95,5],
+    [-660,65,80,100,0],[-540,65,85,105,1],[-455,65,75,95,2],
+    [-660,170,85,105,3],[-540,170,75,95,4],
+    [-200,-295,85,105,5],[-95,-295,75,95,0],[-200,-180,85,105,1],
+    [-95,-180,80,100,2],[-30,-295,70,90,3],[-30,-180,70,90,4],
+    [70,-295,80,100,5],[175,-295,75,95,0],[70,-180,85,105,1],
+    [175,-180,80,100,2],[-200,65,85,105,3],[-95,65,80,100,4],
+    [-30,65,70,90,5],[70,65,85,105,0],[175,65,75,95,1],
+    [-200,180,80,100,2],[-95,180,75,95,3],[-30,180,70,90,4],
+    [70,180,80,100,5],[175,180,75,95,0],[-200,290,75,95,1],
+    [-95,290,80,100,2],[70,290,75,95,3],[175,290,85,105,4],
+    [460,-180,90,110,5],[545,-200,75,95,0],[615,-180,85,105,1],
+    [460,-80,75,95,2],[545,-80,80,100,3],[615,-80,75,95,4],
+    [460,65,80,100,5],[545,65,85,105,0],[615,65,75,95,1],
+    [460,170,85,105,2],[545,170,75,95,3],
+    [-345,-300,70,90,4],[355,-300,70,90,5],
+    [-345,290,70,90,0],[355,290,70,90,1],
+  ].forEach(([x,y,w,h,t])=>addB(x,y,w,h,t));
+
+  // ── Route E-O (ry=0 = cy = tile 175) ────────────────────────────
+  // Largeur route=10t=80px, demi=40px, gap=10t=80px, demi-maison=45px
+  // → Centre maison: ry=±(40+80+45)=±165
+  // Éviter croissement N-S x=100 (rx_rel=-1200): skip rx ∈ [-1343,-1057]
+  // Éviter croissement N-S x=400 (rx_rel=+1200): skip rx ∈ [+1057,+1343]
+  const EW_NORTH=-165, EW_SOUTH=165;
+  // Positions X validées (hors village ±700 et hors croisements N-S)
+  const EW_POS=[
+    [-1750,80,92],[-1600,75,85],[-1450,80,90],
+    // skip: -1343 à -1057 (croisement x=100)
+    [-1010,75,88],[-860,80,92],[-720,75,85],
+    // village: -700 à +700 (bâtiments existants)
+    [720,80,90],[870,75,86],[1020,80,92],
+    // skip: +1057 à +1343 (croisement x=400)
+    [1430,75,88],[1580,80,90],[1730,75,85],
   ];
-  village.forEach(([x,y,w,h],i)=>addB(x,y,w,h,i));
+  EW_POS.forEach(([rx,w,h],i)=>{
+    const t=i%6;
+    addB(rx, EW_NORTH,   w,   h,   t);     // nord rang 1
+    addB(rx, EW_SOUTH,   w,   h,   (t+3)%6); // sud rang 1
+    addB(rx, EW_NORTH-95, w-12,h-14,(t+1)%6); // nord rang 2 (derrière)
+    addB(rx, EW_SOUTH+95, w-12,h-14,(t+4)%6); // sud rang 2 (derrière)
+  });
 
-  // ── BUILDINGS ALONG MAIN E-W ROAD (y=0 rel = tile 175 = cy) ────
-  // Road width = 10 tiles = 80px, so houses start at ±(50+h/2) from cy
-  // North side (ry negative = above road)
-  const ewNorth=-135, ewSouth=135;
-  // West section: x from -1380 to -740 (tiles 75-175 west of center)
-  for(let rx=-1380;rx<-720;rx+=140){
-    let w=70+~~(Math.abs(rx)*0.02%30),h=85+~~(rx*0.01%20);
-    addB(rx+w/2,ewNorth,w,h,id);addB(rx+w/2,ewSouth,w,h,id+1);
-    if(rx+75<-720){addB(rx+w+15,ewNorth,55,75,id+2);addB(rx+w+15,ewSouth,55,75,id+3);}
-  }
-  // East section: x from 740 to 1380
-  for(let rx=740;rx<1380;rx+=140){
-    let w=70+~~(rx*0.02%30),h=85+~~(rx*0.01%20);
-    addB(rx+w/2,ewNorth,w,h,id);addB(rx+w/2,ewSouth,w,h,id+1);
-    if(rx+75<1380){addB(rx+w+15,ewNorth,55,75,id+2);addB(rx+w+15,ewSouth,55,75,id+3);}
-  }
-
-  // ── BUILDINGS ALONG N-S ROADS ────────────────────────────────────
-  // Road at x=100 tiles → rel = (100*8)-cx = 800-2000 = -1200
-  // Road at x=400 tiles → rel = 3200-2000 = 1200
-  const nsW=-1200, nsE=1200;
-  const nsRoadHalf=56; // 7 tiles * 8px / 2
-  // Left of road, right of road
-  for(let ry=-300;ry<300;ry+=120){
-    let w=70,h=90+~~(ry*0.03%25);
-    addB(nsW-nsRoadHalf-40,ry,w,h,id);   // west of x=100 road
-    addB(nsW+nsRoadHalf+40,ry,w,h,id+1); // east of x=100 road
-    addB(nsE-nsRoadHalf-40,ry,w,h,id+2); // west of x=400 road
-    addB(nsE+nsRoadHalf+40,ry,w,h,id+3); // east of x=400 road
-  }
+  // ── Routes N-S x=100 et x=400 ────────────────────────────────────
+  // Route x=100: demi=28px, gap=80px, demi-maison=35px → offset=143
+  // rx_rel de la route: (100*8)-2000 = -1200
+  // rx_rel de la route: (400*8)-2000 = +1200
+  // Éviter croisement E-O (ry=0): skip ry ∈ [-165,+165]
+  const NS_RY=[
+    -1100,-960,-820,-680,-540,-400,-260,
+    // skip: -165 à +165 (croisement E-O)
+    260,400,540,680,820,960,1100,
+  ];
+  NS_RY.forEach((ry,i)=>{
+    const t=i%6,w=70,h=88;
+    addB(-1343, ry, w, h, t);       // ouest route x=100
+    addB(-1057, ry, w, h, (t+2)%6); // est route x=100
+    addB( 1057, ry, w, h, (t+4)%6); // ouest route x=400
+    addB( 1343, ry, w, h, (t+1)%6); // est route x=400
+    // 2e rang (profondeur de quartier)
+    addB(-1460, ry, 60,75,(t+3)%6);
+    addB(-940,  ry, 60,75,(t+5)%6);
+    addB( 940,  ry, 60,75,(t+2)%6);
+    addB( 1460, ry, 60,75,(t+4)%6);
+  });
 }
 
 
@@ -1646,6 +1666,11 @@ function loop(ts){
         showHint('✔ Rechargé!');updateHUD();
       }
     }
+    // Mise à jour visée depuis touch (pouce droit fixe = tire toujours vers ce point monde)
+    if(aimTId!==-1){
+      let wx=camX+aimTX,wy=camY+aimTY;
+      pdir=Math.atan2(wy-py,wx-px);
+    }
     // Shoot trigger
     if(!isReloading&&(shooting||mDown||keys['Space'])){
       let w=WPN[pInVehicle?(VDEFS[pInVehicle.type].wpn||'MGVEH'):pWeapon];
@@ -1654,13 +1679,8 @@ function loop(ts){
     if(rangeActive){rangeT-=dt;if(rangeT<=0)rangeActive=false;}
     updateCapture(dt);
     checkLootTarget();
-    // Clean up looted/expired remote bodies
-    const _now=Date.now();
-    remoteBodies=remoteBodies.filter(b=>{
-      if(_now-b.spawnedAt>90000)return false; // 90s TTL
-      if(b.inventory&&Object.values(b.inventory).every(v=>v===0))return false; // fully looted
-      return true;
-    });
+    // Nettoyage corps distants (90s TTL ou complètement lootés)
+    if(remoteBodies.length){const _n=Date.now();remoteBodies=remoteBodies.filter(b=>_n-b.spawnedAt<90000);}
   }
   // Respawn timer (must be OUTSIDE if(!pDead) block)
   if(pDead){pRespawnT-=dt;if(pRespawnT<=0)respawn();document.getElementById('dtt').textContent=Math.ceil(Math.max(0,pRespawnT));}
