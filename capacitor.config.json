@@ -5,7 +5,10 @@
   "bundledWebRuntime": false,
   "server": {
     "url": "https://firefight-urcw1.onrender.com",
-    "androidScheme": "https"
+    "androidScheme": "https",
+    "allowNavigation": [
+      "firefight-urcw1.onrender.com"
+    ]
   },
   "android": {
     "buildOptions": {

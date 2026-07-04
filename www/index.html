@@ -813,7 +813,7 @@ let droneActive=false,droneX=0,droneY=0,droneDir=0;
 
 function fireDrone(){
   if(!droneActive)return;
-  let dr=90,dmg=55; // 50% of 110HP, radius 90px
+  let dr=90,dmg=150; // one-shot kill (HP max = 110)
   spawnExplosion(droneX,droneY,dr,dmg,'drone_'+myId,myTeam);
   // Damage remote enemies near drone position
   Object.values(remotes).forEach(r=>{
@@ -873,8 +873,11 @@ function tryVehicle(){
     // Sortir du véhicule — libérer la place pour d'autres
     px=pInVehicle.wx+Math.cos(pInVehicle.dir+Math.PI/2)*55;
     py=pInVehicle.wy+Math.sin(pInVehicle.dir+Math.PI/2)*55;
-    if(pInVehicle.driver===myId){pInVehicle.driver=null;}
+    let _wasDriver=pInVehicle.driver===myId;
+    if(_wasDriver)pInVehicle.driver=null;
     if(pInVehicle.passengers)pInVehicle.passengers=pInVehicle.passengers.filter(id=>id!==myId);
+    // Libérer le véhicule si complètement vide
+    if(!pInVehicle.driver&&!(pInVehicle.passengers?.length))pInVehicle.available=true;
     pInVehicle=null;showHint('Sorti');updateHUD();return;
   }
   // Entrer dans un véhicule proche (occupé ou libre)
@@ -927,8 +930,7 @@ function takeDamage(amt,from){
 function die(killer){
   pDead=true;
   _uaDeathFrame=~~(Math.random()*6); // random UA death pose
-  tickets[myTeam]=Math.max(0,(tickets[myTeam]||200)-1);
-  chan&&chan.publish('tix',tickets);pRespawnT=RESP_T;isDying=true;dyingFr=~~(Math.random()*6);dyingT=0;
+  // Ticket décrémenté au respawn (pas à la mort)pRespawnT=RESP_T;isDying=true;dyingFr=~~(Math.random()*6);dyingT=0;
   if(pInVehicle){pInVehicle.driver=null;pInVehicle=null;}
   deadBodies.push({x:px,y:py,team:myTeam,cls:myCls,name:myName,
     angle:pdir,bloodR:28+~~(Math.random()*15),inventory:{...pBag}});
@@ -942,6 +944,10 @@ function die(killer){
 
 function respawn(){
   pDead=false;isDying=false;let cd=CLS[myCls];
+  // Décrémenter le ticket de son équipe au respawn
+  tickets[myTeam]=Math.max(0,(tickets[myTeam]||50)-1);
+  chan&&chan.publish('tix',{...tickets});
+  if(tickets.UA<=0||tickets.RU<=0)checkWin();
   php=pMaxHp;initBag();
   pAmmo=pBag[pWeapon+'_a']||cd.ammo;pMags=pBag[pWeapon+'_m']||cd.mags;
   pGren=pBag.grenade||0;pSpecial=pBag[cd.sp]||0;pMedkit=1;
@@ -1091,12 +1097,29 @@ function netConnect(){
       // Sync vehicle position from remote driver
       if(d.inVeh&&d.vehX!==undefined){
         let v=vehicles.find(vv=>vv.id===d.inVeh);
-        if(v){v.wx=d.vehX;v.wy=d.vehY;if(d.vehDir!==undefined)v.dir=d.vehDir;if(!v.driver)v.driver=d.id;v.available=false;}
+        if(v){
+          v.wx=d.vehX;v.wy=d.vehY;if(d.vehDir!==undefined)v.dir=d.vehDir;
+          v.available=false;
+          if(d.isDriver){
+            v.driver=d.id; // conducteur
+          }else{
+            // Passager : mettre à jour la liste
+            if(!v.passengers)v.passengers=[];
+            if(!v.passengers.includes(d.id))v.passengers.push(d.id);
+            if(!v.driver)v.driver=null; // sécurité
+          }
+        }
       } else {
         // Joueur sorti — libérer son slot dans tous les véhicules
         vehicles.forEach(v=>{
-          if(v.driver===d.id){v.driver=null;if(!v.passengers?.length)v.available=true;}
+          if(v.driver===d.id){
+            v.driver=null;
+            // Si pas de passagers → véhicule libre
+            if(!v.passengers?.length)v.available=true;
+          }
           if(v.passengers)v.passengers=v.passengers.filter(id=>id!==d.id);
+          // Si personne dans le véhicule → libre
+          if(!v.driver&&!(v.passengers?.length))v.available=true;
         });
       }
     });
@@ -1134,6 +1157,7 @@ function netConnect(){
     setInterval(()=>{if(!chan||!gameOn)return;
       chan.publish('pos',{id:myId,name:myName,x:px,y:py,dir:pdir,
         team:myTeam,cls:myCls,hp:php,dead:pDead,inVeh:pInVehicle?pInVehicle.id:null,
+        isDriver:pInVehicle?pInVehicle.driver===myId:false,
         moving:pMoving,wfr:walkFr,sfr:shootFr,
         vehX:pInVehicle?pInVehicle.wx:undefined,vehY:pInVehicle?pInVehicle.wy:undefined,vehDir:pInVehicle?pInVehicle.dir:undefined});
       // Drone sync
@@ -1443,31 +1467,50 @@ function drawPlayers(){
 }
 
 // ── VEHICLE RENDERER ──────────────────────────────────────────────
+function _drawVehPassengers(v,sx,sy){
+  // Dessiner les passagers (sprites statiques) à l'arrière du véhicule
+  let _occ=[v.driver,...(v.passengers||[])].filter(Boolean);
+  if(_occ.length<=1)return;
+  let _ra=v.dir+Math.PI;
+  // Positions en grille 2×2 à l'arrière
+  const _slots=[{s:-1,r:0},{s:1,r:0},{s:-1,r:1},{s:1,r:1}];
+  for(let pi=1;pi<Math.min(_occ.length,5);pi++){
+    let _id=_occ[pi];
+    let _slot=_slots[pi-1];
+    let _ox=Math.cos(_ra)*32+Math.cos(v.dir+Math.PI/2)*_slot.s*11;
+    let _oy=Math.sin(_ra)*32+Math.sin(v.dir+Math.PI/2)*_slot.s*11+_slot.r*13;
+    let _pteam=_id===myId?myTeam:(remotes[_id]?.team||myTeam);
+    let _pcls=_id===myId?myCls:(remotes[_id]?.cls||'fusil');
+    // Sprite statique du passager
+    let _sp=getSoldierSprite(_pteam,_pcls,false,false,false,false,0,0);
+    if(_sp?.useEx&&_sp.img?.complete){
+      drawFrameEx(_sp.img,_sp.sx,_sp.sy,_sp.sw,_sp.sh,sx+_ox,sy+_oy,v.dir+Math.PI/2,0.55);
+    }
+  }
+}
+
 function drawVehicles(){
+  // Dessiner TOUS les véhicules non-détruits (qu'ils soient occupés ou libres)
   vehicles.forEach(v=>{
-    if(!v.available)return;
+    if(v.hp<=0&&!v.available)return; // véhicule détruit → invisible
+    if(v===pInVehicle)return; // véhicule local → dessiné séparément ci-dessous
     let sx=v.wx-camX,sy=v.wy-camY;
     if(Math.abs(sx)>W+80||Math.abs(sy)>H+80)return;
-    drawVehicleSpr(sx,sy,v.dir,v.type,v.team,v.hp,v.driver,v.driver===myId?myName:remotes[v.driver]?.name,v.turretDir);
+    // Nom = conducteur ou "Vide"
+    let _dname=v.driver?(v.driver===myId?myName:(remotes[v.driver]?.name||'?')):'';
+    let _pnames=(v.passengers||[]).map(id=>id===myId?myName:(remotes[id]?.name||'?'));
+    let _allNames=[_dname,..._pnames].filter(Boolean).join(' | ');
+    drawVehicleSpr(sx,sy,v.dir,v.type,v.driver?(remotes[v.driver]?.team||myTeam):myTeam,
+      v.hp,v.driver,_allNames,v.turretDir);
+    _drawVehPassengers(v,sx,sy);
   });
+  // Véhicule du joueur local
   if(pInVehicle){
     let sx=pInVehicle.wx-camX,sy=pInVehicle.wy-camY;
-    // Noms des passagers
     let _occ=[pInVehicle.driver,...(pInVehicle.passengers||[])].filter(Boolean);
-    let _names=_occ.map(id=>id===myId?myName:(remotes[id]?.name||id.slice(0,4)));
-    drawVehicleSpr(sx,sy,pInVehicle.dir,pInVehicle.type,myTeam,pInVehicle.hp,myId,_names.join(' | '),pInVehicle.turretDir);
-    // Petits ronds passagers à l'arrière du véhicule
-    if(_occ.length>1){
-      let _rAngle=pInVehicle.dir+Math.PI; // arrière du véhicule
-      for(let pi=1;pi<Math.min(_occ.length,5);pi++){
-        let _ox=Math.cos(_rAngle)*30+Math.cos(pInVehicle.dir+Math.PI/2)*((pi%2===0?1:-1)*12);
-        let _oy=Math.sin(_rAngle)*30+Math.sin(pInVehicle.dir+Math.PI/2)*((pi%2===0?1:-1)*12);
-        let _row=~~((pi-1)/2)*15;
-        ctx.fillStyle=myTeam==='UA'?'rgba(60,120,255,0.8)':'rgba(220,60,60,0.8)';
-        ctx.beginPath();ctx.arc(sx+_ox,sy+_oy+_row,7,0,Math.PI*2);ctx.fill();
-        ctx.strokeStyle='#FFF';ctx.lineWidth=1;ctx.stroke();
-      }
-    }
+    let _names=_occ.map(id=>id===myId?myName:(remotes[id]?.name||'?'));
+    drawVehicleSpr(sx,sy,pInVehicle.dir,pInVehicle.type,myTeam,pInVehicle.hp,pInVehicle.driver,_names.join(' | '),pInVehicle.turretDir);
+    _drawVehPassengers(pInVehicle,sx,sy);
   }
 }
 
@@ -1854,7 +1897,8 @@ function loop(ts){
       });
       if(_dExpl)fireDrone();
     }else if(pInVehicle){
-      if(pMoving){
+      // Seul le conducteur peut déplacer le véhicule (pas les passagers)
+      if(pMoving&&pInVehicle.driver===myId){
         let vs=VDEFS[pInVehicle.type].spd;
         let nx=pInVehicle.wx+mvX*vs*dt,ny=pInVehicle.wy+mvY*vs*dt;
         if(!isBlocked(nx+22,ny)||!isBlocked(nx-22,ny))pInVehicle.wx=Math.max(0,Math.min(WW-70,nx));
