@@ -4,6 +4,7 @@
   "webDir": "www",
   "bundledWebRuntime": false,
   "server": {
+    "url": "https://firefight-urcw1.onrender.com",
     "androidScheme": "https"
   },
   "android": {
