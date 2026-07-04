@@ -1,4 +1,4 @@
-from flask import Flask, send_from_directory
+from flask import Flask, send_from_directory, jsonify
 import os
 
 app = Flask(__name__, static_folder='.')
@@ -6,6 +6,10 @@ app = Flask(__name__, static_folder='.')
 @app.route('/')
 def index():
     return send_from_directory('.', 'index.html')
+
+@app.route('/ping')
+def ping():
+    return jsonify({'status': 'ok'})
 
 @app.route('/<path:filename>')
 def static_files(filename):

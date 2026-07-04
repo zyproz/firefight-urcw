@@ -993,8 +993,10 @@ function respawn(){
   pAmmo=pBag[pWeapon+'_a']||cd.ammo;pMags=pBag[pWeapon+'_m']||cd.mags;
   pGren=pBag.grenade||0;pSpecial=pBag[cd.sp]||0;pMedkit=1;
   isReloading=false;document.getElementById('rlbar').style.display='none';
-  if(myTeam==='RU'){px=(48+Math.random()*10)*T;py=(36+Math.random()*10)*T;}
-  else{px=(478+Math.random()*10)*T;py=(330+Math.random()*12)*T;}
+  // Map 2560x2560: RU spawns left ~5%, UA spawns right ~95%
+  let _sOff=~~(Math.random()*80)-40; // ±40px random offset
+  if(myTeam==='RU'){px=128+~~(Math.random()*60);py=WH/2+_sOff;}
+  else{px=WW-180+~~(Math.random()*60);py=WH/2+_sOff;}
   document.getElementById('ds').style.display='none';
   updateHUD();updateAbBtn();
 }
@@ -1032,11 +1034,24 @@ function updateCapture(dt){
 
 // ── LOOT ─────────────────────────────────────────────────────────
 function checkLootTarget(){
+  if(pDead)return;
   let closest=null,cd=Infinity;
+  // Local dead bodies
   deadBodies.forEach(b=>{let d=Math.hypot(b.x-px,b.y-py);if(d<150&&d<cd){cd=d;closest=b;}});
+  // Remote bodies (persistent)
   remoteBodies.forEach(b=>{let d=Math.hypot(b.x-px,b.y-py);if(d<150&&d<cd){cd=d;closest=b;}});
+  // Live remote players that just died (in remotes[id].dead)
+  Object.values(remotes).forEach(r=>{
+    if(!r.dead)return;
+    let bx=r.deadX||r.x, by=r.deadY||r.y;
+    let d=Math.hypot(bx-px,by-py);
+    if(d<150&&d<cd){cd=d;
+      closest={x:bx,y:by,team:r.team,cls:r.cls,name:r.name||'?',
+               angle:r.deadAngle||0,bloodR:30,inventory:r.deadInv||{}};}
+  });
   lootTarget=closest;
-  document.getElementById('bloot').style.display=closest?'block':'none';
+  let btn=document.getElementById('bloot');
+  if(btn)btn.style.display=closest?'block':'none';
 }
 
 // ── INVENTORY UI ──────────────────────────────────────────────────
@@ -1176,7 +1191,7 @@ function netConnect(){
     chan.subscribe('cap',m=>{let d=m.data;if(!d)return;let cp=CAPS.find(c=>c.id===d.id);if(cp){cp.team=d.team;cp.capProg=0;updateHUD();}});
     chan.subscribe('died',m=>{
       let d=m.data;if(!d)return;
-      if(remotes[d.id])Object.assign(remotes[d.id],{dead:true,deadX:d.x,deadY:d.y,deadAngle:d.angle||0,bloodR:30});
+      if(remotes[d.id])Object.assign(remotes[d.id],{dead:true,deadX:d.x,deadY:d.y,deadAngle:d.angle||0,bloodR:30,deadInv:d.inv||{}});
       let _df2=(d.df!==undefined)?d.df:~~(Math.random()*6);
       remoteBodies.push({x:d.x,y:d.y,team:d.team,cls:d.cls,name:d.name||'?',
         angle:d.angle||0,bloodR:30,inventory:d.inv||{},deathFrame:_df2,spawnedAt:Date.now()});
@@ -1498,7 +1513,7 @@ function drawVehicles(){
     let _dname=v.driver?(v.driver===myId?myName:(remotes[v.driver]?.name||'?')):'';
     let _pnames=(v.passengers||[]).map(id=>id===myId?myName:(remotes[id]?.name||'?'));
     let _allNames=[_dname,..._pnames].filter(Boolean).join(' | ');
-    drawVehicleSpr(sx,sy,v.dir,v.type,v.driver?(remotes[v.driver]?.team||myTeam):myTeam,
+    drawVehicleSpr(sx,sy,v.dir,v.type,v.team||myTeam, // use vehicle's own team
       v.hp,v.driver,_allNames,v.turretDir);
     _drawVehPassengers(v,sx,sy);
   });
@@ -1984,6 +1999,33 @@ loadSprites(()=>{
 });
 // Start loop immediately too (will use fallback procedural if sprites not ready)
 requestAnimationFrame(loop);
+// ── KEEPALIVE: ping server every 4min to prevent Render.com sleep ────────────
+(function(){
+  function _ping(){
+    fetch('/ping',{method:'GET',cache:'no-cache'}).catch(()=>{});
+  }
+  _ping(); // initial ping
+  setInterval(_ping, 4*60*1000); // every 4 minutes
+})();
+
+// ── ABLY RECONNECT: handle disconnection ─────────────────────────────────────
+function _ablyReconnect(){
+  if(!window._ablyClient)return;
+  try{
+    let st=window._ablyClient.connection.state;
+    if(st==='disconnected'||st==='suspended'||st==='failed'){
+      console.log('[Ably] Reconnecting...',st);
+      window._ablyClient.connect();
+    }
+  }catch(e){}
+}
+setInterval(_ablyReconnect, 15*1000); // check every 15s
+
+// Keep page alive (prevent browser tab throttling)
+window.addEventListener('visibilitychange',()=>{
+  if(!document.hidden) _ablyReconnect();
+});
+
 </script>
 <script src="https://cdn.ably.io/lib/ably.min-1.js"></script>
 </body>
