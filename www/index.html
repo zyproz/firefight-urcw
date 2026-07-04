@@ -542,8 +542,7 @@ function generateMap(){
     3+~~(Math.random()*6),2+~~(Math.random()*4),TL.MUD);
 
   // Init buildings
-  initBuildings();
-  mapReady=true;
+    mapReady=true;
 }
 
 // ── CAPTURE POINTS ────────────────────────────────────────────────
@@ -616,12 +615,15 @@ function initBag(){
 // ── VEHICLES ─────────────────────────────────────────────────────
 function spawnVehicles(){
   vehicles=[];
-  const ruPos=[[10,10],[24,10],[10,24],[24,24],[17,36]];
-  const uaPos=[[444,306],[460,306],[444,320],[460,320],[452,334]];
-  ruPos.forEach((p,i)=>{vehicles.push({id:'rv'+i,type:'truck_ru',team:'RU',wx:p[0]*T,wy:p[1]*T,
-    dir:Math.PI/2,hp:260,maxHp:260,driver:null,available:true,respawnT:0,spawnX:p[0]*T,spawnY:p[1]*T});});
-  uaPos.forEach((p,i)=>{vehicles.push({id:'uv'+i,type:'truck_ua',team:'UA',wx:p[0]*T,wy:p[1]*T,
-    dir:-Math.PI/2,hp:260,maxHp:260,driver:null,available:true,respawnT:0,spawnX:p[0]*T,spawnY:p[1]*T});});
+  // Map: 2560x2560, T=8 → 320x320 tiles
+  // RU vehicles: LEFT side (pixel ~128-400, mid-height ±200px)
+  const ruPx=[[128,1080],[192,1080],[128,1180],[192,1180],[160,1280]];
+  // UA vehicles: RIGHT side (pixel ~2160-2430, mid-height ±200px)
+  const uaPx=[[2432,1080],[2368,1080],[2432,1180],[2368,1180],[2400,1280]];
+  ruPx.forEach((p,i)=>{vehicles.push({id:'rv'+i,type:'truck_ru',team:'RU',wx:p[0],wy:p[1],
+    dir:0,hp:260,maxHp:260,driver:null,available:true,respawnT:0,spawnX:p[0],spawnY:p[1]});});
+  uaPx.forEach((p,i)=>{vehicles.push({id:'uv'+i,type:'truck_ua',team:'UA',wx:p[0],wy:p[1],
+    dir:Math.PI,hp:260,maxHp:260,driver:null,available:true,respawnT:0,spawnX:p[0],spawnY:p[1]});});
 }
 
 // ── CANVAS ───────────────────────────────────────────────────────
@@ -677,8 +679,8 @@ function doSpawn(){
   initBag();
   pAmmo=pBag[pWeapon+'_a']||30;pMags=pBag[pWeapon+'_m']||0;
   pGren=pBag.grenade||0;pSpecial=pBag[cd.sp]||0;
-  if(myTeam==='RU'){px=~~(WW*0.08);py=~~(WH*0.5);}else{px=~~(WW*0.92);py=~~(WH*0.5);}
-  pdir=myTeam==='RU'?Math.PI/2:-Math.PI/2;
+  if(myTeam==='RU'){px=~~(WW*0.05);py=~~(WH*0.5);pdir=0;}else{px=~~(WW*0.95);py=~~(WH*0.5);pdir=Math.PI;}
+  
   pDead=false;camX=px-W/2;camY=py-H/2;
   document.getElementById('menu').style.display='none';
   document.getElementById('hud').style.display='block';
@@ -1237,21 +1239,18 @@ function toggleMap(){
 function hashXY(x,y){return((x*73856093)^(y*19349663))>>>0;}
 
 function drawTerrain(){
-  // POKX map: 5x5 tiles, each 512x512px in world space (1:1, no zoom)
-  const TW=512, TH=512, COLS=5, ROWS=5;
-  // Only draw visible tiles
+  // POKX map tiles: 5x5 grid, each 512x512px, drawn 1:1 (no zoom)
+  const TW=512, TH=512;
   const startC=Math.max(0,~~(camX/TW));
   const startR=Math.max(0,~~(camY/TH));
-  const endC=Math.min(COLS-1,~~((camX+W)/TW));
-  const endR=Math.min(ROWS-1,~~((camY+H)/TH));
+  const endC=Math.min(4,~~((camX+W)/TW));
+  const endR=Math.min(4,~~((camY+H)/TH));
   for(let c=startC;c<=endC;c++){
     for(let r=startR;r<=endR;r++){
       let img=IMG[`tile${c}${r}`];
       if(img&&img.complete){
-        let sx=c*TW-camX, sy=r*TH-camY;
-        ctx.drawImage(img, sx, sy, TW, TH);
+        ctx.drawImage(img, c*TW-camX, r*TH-camY, TW, TH);
       }else{
-        // Fallback: dark green
         ctx.fillStyle='#2A3E20';
         ctx.fillRect(c*TW-camX, r*TH-camY, TW, TH);
       }
@@ -1647,36 +1646,35 @@ let _mmTerrain=null;
 function drawMinimap(){
   let mc=document.getElementById('mm'),mctx=mc.getContext('2d');
   let mw=mc.width, mh=mc.height;
-  // Draw POKX overview
+  // POKX overview image
   let mmImg=IMG.tile_mini;
   if(mmImg&&mmImg.complete){
     mctx.drawImage(mmImg,0,0,mw,mh);
   }else{
     mctx.fillStyle='#2A3E20';mctx.fillRect(0,0,mw,mh);
   }
-  // Player — pixel-perfect position
-  let dotX=(px/WW)*mw, dotY=(py/WH)*mh;
-  mctx.beginPath();mctx.arc(dotX,dotY,4,0,Math.PI*2);
-  mctx.fillStyle=myTeam==='UA'?'#3399FF':'#FF2222';mctx.fill();
-  mctx.strokeStyle='#fff';mctx.lineWidth=1.5;mctx.stroke();
-  // Remotes
-  Object.values(remotes).forEach(r=>{
-    if(r.dead)return;
-    let rx=(r.x/WW)*mw, ry=(r.y/WH)*mh;
-    mctx.beginPath();mctx.arc(rx,ry,3,0,Math.PI*2);
-    mctx.fillStyle=r.team==='UA'?'#3399FF':'#FF2222';mctx.fill();
-  });
-  // Capture points
+  // Capture points only
   if(typeof CAPS!=='undefined')CAPS.forEach(c=>{
     let cx=(c.wx/WW)*mw, cy=(c.wy/WH)*mh;
     mctx.fillStyle=c.team==='UA'?'#4488FF':c.team==='RU'?'#FF3333':'#FFFFFF';
     mctx.fillRect(cx-3,cy-3,6,6);
-    mctx.strokeStyle='#000';mctx.lineWidth=1;mctx.strokeRect(cx-3,cy-3,6,6);
+    mctx.strokeStyle='rgba(0,0,0,0.6)';mctx.lineWidth=1;mctx.strokeRect(cx-3,cy-3,6,6);
+    mctx.font='7px sans-serif';mctx.fillStyle='#fff';mctx.textAlign='center';
+    mctx.fillText(c.id,cx,cy-5);
   });
-  // Camera viewport rect
-  let vx=(camX/WW)*mw,vy=(camY/WH)*mh,vw=(W/WW)*mw,vh=(H/WH)*mh;
-  mctx.strokeStyle='rgba(255,255,255,0.6)';mctx.lineWidth=1;
-  mctx.strokeRect(vx,vy,vw,vh);
+  // OWN player — colored dot by team
+  let dotX=(px/WW)*mw, dotY=(py/WH)*mh;
+  mctx.beginPath();mctx.arc(dotX,dotY,4,0,Math.PI*2);
+  mctx.fillStyle=myTeam==='UA'?'#3399FF':'#FF2222';mctx.fill();
+  mctx.strokeStyle='#fff';mctx.lineWidth=1.5;mctx.stroke();
+  // ALLIES only (same team) — NO enemy dots
+  Object.values(remotes).forEach(r=>{
+    if(r.dead||r.team!==myTeam)return;
+    let rx=(r.x/WW)*mw, ry=(r.y/WH)*mh;
+    mctx.beginPath();mctx.arc(rx,ry,3,0,Math.PI*2);
+    mctx.fillStyle=myTeam==='UA'?'#3399FF':'#FF2222';mctx.fill();
+  });
+  // NO viewport rectangle, NO enemy dots
 }
 
 function drawBigMap(){
@@ -1953,7 +1951,6 @@ function loop(ts){
   ctx.fillStyle='#1A2218';ctx.fillRect(0,0,W,H);
   drawTerrain();
   drawCaps();
-  drawBuildings();
   drawGrensFn(dt);
   drawBulletsFn(dt);
   drawExplsFn(dt);
@@ -1976,9 +1973,8 @@ window.addEventListener('beforeunload',()=>{if(chan)chan.publish('bye',{id:myId}
 // ── INIT ──────────────────────────────────────────────────────────
 selT('UA');selC('fusil');
 _mmTerrain=null;
-generateMap();
-initBuildings();
 spawnVehicles();
+mapReady=true;
 // Load sprites THEN start loop
 loadSprites(()=>{
   console.log('[frontline.io v1.1] Sprites chargés — démarrage!');
