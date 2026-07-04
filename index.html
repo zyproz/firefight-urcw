@@ -582,6 +582,7 @@ const RELOAD_DUR=2.2;
 let tickets={UA:WIN_TIX,RU:WIN_TIX};
 // Others
 let remotes={},bullets=[],grenades=[],explosions=[],deadBodies=[],remoteBodies=[],vehicles=[];
+let _corpses=[]; // Permanent corpse store — NEVER cleared by respawn or player state
 let lootTarget=null,gameOn=false;
 let rangeActive=false,rangeT=0;
 // Inventory
@@ -993,8 +994,13 @@ function die(killer){
   _uaDeathFrame=~~(Math.random()*6); // random UA death pose
   // Ticket décrémenté au respawn (pas à la mort)pRespawnT=RESP_T;isDying=true;dyingFr=~~(Math.random()*6);dyingT=0;
   if(pInVehicle){pInVehicle.driver=null;pInVehicle=null;}
-  deadBodies.push({x:px,y:py,team:myTeam,cls:myCls,name:myName,
-    angle:pdir,bloodR:28+~~(Math.random()*15),inventory:{...pBag}});
+  // Own corpse — stored permanently, survives respawn
+  let _corpseData={cid:myId+'_'+Date.now(),x:px,y:py,team:myTeam,cls:myCls,name:myName,
+    angle:pdir,bloodR:28+~~(Math.random()*15),df:dyingFr};
+  _corpses.push(_corpseData);
+  deadBodies.push({..._corpseData,inventory:{...pBag}});
+  // Broadcast to all players — corpse is a permanent independent object
+  chan&&chan.publish('corpse',{..._corpseData,inv:JSON.parse(JSON.stringify(pBag))});
   document.getElementById('ds').style.display='flex';
   document.getElementById('dtt').textContent=RESP_T;
   // Seule l'équipe du mort perd un ticket (pas le tueur)
@@ -1022,6 +1028,7 @@ function respawn(){
 }
 
 function checkWin(){
+  _corpses=[];deadBodies=[];remoteBodies=[]; // Clear corpses on game restart
   let w=tickets.UA<=0?'RU':'UA';
   showNotif((w==='UA'?'🇺🇦 UKRAINE':'🇷🇺 RUSSIE')+' VICTOIRE! Reset 10s...');
   setTimeout(()=>{tickets={UA:WIN_TIX,RU:WIN_TIX};CAPS.forEach(c=>{c.team=null;c.capProg=0;});updateHUD();},10000);
@@ -1217,6 +1224,16 @@ function netConnect(){
       remoteBodies.push({x:d.x,y:d.y,team:d.team,cls:d.cls,name:d.name||'?',
         angle:d.angle||0,bloodR:30,inventory:d.inv||{},deathFrame:_df2,spawnedAt:Date.now()});
       if(remotes[d.id])remotes[d.id].deathFrame=_df2;
+    });
+    // Permanent corpse subscribe — completely independent of player state
+    chan.subscribe('corpse',m=>{
+      let d=m.data;if(!d||d.cid===undefined)return;
+      // Only add if not already stored (avoid duplicates on reconnect)
+      if(!_corpses.find(c=>c.cid===d.cid)){
+        _corpses.push({cid:d.cid,x:d.x,y:d.y,team:d.team,cls:d.cls,
+          name:d.name||'?',angle:d.angle||0,bloodR:d.bloodR||28,df:d.df||0,
+          inventory:d.inv||{}});
+      }
     });
     chan.subscribe('tix',m=>{let d=m.data;if(d)tickets=d;updateHUD();});
     chan.subscribe('bye',m=>{let d=m.data;if(d&&d.id)delete remotes[d.id];});
@@ -1903,33 +1920,22 @@ function drawDroneFPV(dt){
 
 // ── DEAD BODIES — persistent corpses drawn independently ─────────────────────
 function drawDeadBodies(){
-  // Local dead bodies (own deaths)
-  deadBodies.forEach(b=>{
-    let sx=b.x-camX,sy=b.y-camY;
-    if(Math.abs(sx)>W+80||Math.abs(sy)>H+80)return;
+  // Render ALL corpses — completely independent of player respawn state
+  _corpses.forEach(c=>{
+    let sx=c.x-camX,sy=c.y-camY;
+    if(Math.abs(sx)>W+100||Math.abs(sy)>H+100)return;
     // Blood pool
-    if(b.bloodR>0){
-      let gr=ctx.createRadialGradient(sx,sy+8,1,sx,sy+8,b.bloodR);
-      gr.addColorStop(0,'rgba(100,0,0,0.7)');gr.addColorStop(1,'rgba(60,0,0,0)');
-      ctx.fillStyle=gr;ctx.beginPath();ctx.ellipse(sx,sy+8,b.bloodR,b.bloodR*.4,0,0,Math.PI*2);ctx.fill();
+    if(c.bloodR>0){
+      ctx.save();ctx.globalAlpha=0.55;
+      let gr=ctx.createRadialGradient(sx,sy+10,1,sx,sy+10,c.bloodR);
+      gr.addColorStop(0,'rgba(120,0,0,0.9)');gr.addColorStop(1,'rgba(60,0,0,0)');
+      ctx.fillStyle=gr;ctx.beginPath();
+      ctx.ellipse(sx,sy+10,c.bloodR,c.bloodR*0.38,0,0,Math.PI*2);ctx.fill();
+      ctx.restore();
     }
-    // Corpse sprite (dead=true, correct param order)
-    drawSoldierSprite(sx,sy,b.angle||0,b.team,b.cls||'fusil',
-      b.team===myTeam,b.name||'',0,false,false,false,true,false,0,0,0);
-  });
-  // Remote dead bodies (persistent — enemies/allies from network)
-  remoteBodies.forEach(b=>{
-    let sx=b.x-camX,sy=b.y-camY;
-    if(Math.abs(sx)>W+80||Math.abs(sy)>H+80)return;
-    // Blood pool
-    if(b.bloodR>0){
-      let gr=ctx.createRadialGradient(sx,sy+8,1,sx,sy+8,b.bloodR);
-      gr.addColorStop(0,'rgba(100,0,0,0.7)');gr.addColorStop(1,'rgba(60,0,0,0)');
-      ctx.fillStyle=gr;ctx.beginPath();ctx.ellipse(sx,sy+8,b.bloodR,b.bloodR*.4,0,0,Math.PI*2);ctx.fill();
-    }
-    // Corpse sprite (dead=true, correct param order)
-    drawSoldierSprite(sx,sy,b.angle||0,b.team,b.cls||'fusil',
-      b.team===myTeam,b.name||'',0,false,false,false,true,false,0,0,0);
+    // Corpse sprite — dead=true (12th param), correct order
+    drawSoldierSprite(sx,sy,c.angle||0,c.team,c.cls||'fusil',
+      c.team===myTeam,c.name||'',0,false,false,false,true,false,0,0,0);
   });
 }
 
