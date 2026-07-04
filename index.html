@@ -246,7 +246,7 @@ body{background:#0A0D08;overflow:hidden;font-family:'Courier New',monospace;user
   <div style="color:#FF2222;font-size:30px;font-weight:bold;font-family:Courier New;letter-spacing:3px;margin-bottom:8px;text-shadow:0 0 20px #f00">VOUS ÊTES MORT</div>
   <div style="color:#999;font-size:12px;font-family:Courier New;margin-bottom:16px">Votre corps reste sur la carte</div>
   <div id="dtt" style="color:#FFD700;font-size:20px;font-family:Courier New;margin-bottom:20px">Respawn dans 6s</div>
-  <button id="respawnBtn" onclick="doRespawn()" disabled
+  <button id="respawnBtn" onclick="clickRespawn()" disabled
     style="background:#333;color:#666;border:2px solid #555;border-radius:10px;
     padding:16px 40px;font-size:18px;font-family:Courier New;letter-spacing:2px;
     cursor:not-allowed;min-width:200px;touch-action:manipulation">⟳ RESPAWN</button>
@@ -591,7 +591,7 @@ const RELOAD_DUR=2.2;
 let tickets={UA:WIN_TIX,RU:WIN_TIX};
 // Others
 let remotes={},bullets=[],grenades=[],explosions=[],deadBodies=[],remoteBodies=[],vehicles=[];
-let _corpses=[]; // Permanent corpse store — NEVER cleared by respawn or player state
+let _allCorpses=[]; // permanent corpse store
 let lootTarget=null,gameOn=false;
 let rangeActive=false,rangeT=0;
 // Inventory
@@ -999,29 +999,61 @@ function takeDamage(amt,from){
 }
 
 function die(killer){
+  if(pDead)return; // prevent double-die
   pDead=true;
-  _uaDeathFrame=~~(Math.random()*6); // random UA death pose
-  pRespawnT=RESP_T;isDying=true;dyingFr=~~(Math.random()*6);dyingT=0;_respawnReady=false; // respawn timer + dying anim
+  isDying=true;dyingFr=~~(Math.random()*6);dyingT=0;
   if(pInVehicle){pInVehicle.driver=null;pInVehicle=null;}
-  // Own corpse — stored permanently, survives respawn
-  let _corpseData={cid:myId+'_'+Date.now(),x:px,y:py,team:myTeam,cls:myCls,name:myName,
-    angle:pdir,bloodR:28+~~(Math.random()*15),df:dyingFr};
-  _corpses.push(_corpseData);
-  deadBodies.push({..._corpseData,inventory:{...pBag}});
-  // Broadcast to all players — corpse is a permanent independent object
-  chan&&chan.publish('corpse',{..._corpseData,inv:JSON.parse(JSON.stringify(pBag))});
-  document.getElementById('ds').style.display='flex';
-  document.getElementById('dtt').textContent=RESP_T;
-  // Seule l'équipe du mort perd un ticket (pas le tueur)
-  if(tickets.UA<=0||tickets.RU<=0)checkWin();
   updateHUD();
-  chan&&chan.publish('died',{id:myId,x:px,y:py,team:myTeam,cls:myCls,name:myName,angle:pdir,inv:{...pBag},df:dyingFr});
+
+  // 1. Store permanent corpse for local draw
+  let _c={cid:myId+'_'+Date.now(),x:px,y:py,
+    team:myTeam,cls:myCls,name:myName,
+    angle:pdir,blood:28+~~(Math.random()*12),df:dyingFr};
+  _allCorpses.push(_c);
+
+  // 2. Broadcast corpse to all players (permanent)
+  chan&&chan.publish('corpse2',{..._c,inv:JSON.parse(JSON.stringify(pBag))});
+
+  // 3. Ticket system
+  tickets[myTeam]=Math.max(0,(tickets[myTeam]||50)-1);
+  chan&&chan.publish('tix',{...tickets});
+  if(tickets.UA<=0||tickets.RU<=0)checkWin();
+
+  // 4. Show death overlay
+  let ov=document.getElementById('deathOverlay');
+  if(ov)ov.style.display='flex';
+
+  // 5. Legacy died event (for remote dead rendering)
+  chan&&chan.publish('died',{id:myId,x:px,y:py,team:myTeam,cls:myCls,
+    name:myName,angle:pdir,inv:{...pBag},df:dyingFr});
 }
 
 // Respawn countdown — enables button after 5s, called from pDead timer
 // respawn() called by old code — redirect to button enable (doRespawn handles actual spawn)
-function respawn(){
-  // Handled by the loop timer now — this function kept for compatibility
+function respawn(){} // legacy stub
+
+function clickRespawn(){
+  if(!pDead)return;
+  pDead=false;isDying=false;
+  let cd=CLS[myCls]||{};
+  php=pMaxHp;initBag();
+  pAmmo=pBag[pWeapon+'_a']||cd.ammo||30;
+  pMags=pBag[pWeapon+'_m']||cd.mags||3;
+  pGren=pBag.grenade||0;
+  pSpecial=pBag[cd.sp]||0;pMedkit=1;
+  isReloading=false;
+  document.getElementById('rlbar').style.display='none';
+  // Spawn position
+  let _sOff=~~(Math.random()*80)-40;
+  if(myTeam==='RU'){px=128+~~(Math.random()*60);py=WH/2+_sOff;pdir=0;}
+  else{px=WW-180+~~(Math.random()*60);py=WH/2+_sOff;pdir=Math.PI;}
+  // Hide overlay
+  let ov=document.getElementById('deathOverlay');
+  if(ov)ov.style.display='none';
+  // Broadcast new position immediately
+  chan&&chan.publish('pos',{id:myId,name:myName,x:px,y:py,dir:pdir,
+    team:myTeam,cls:myCls,hp:php,dead:false,inVeh:null,moving:false,wfr:0,sfr:0});
+  updateHUD();updateAbBtn();
 }
 
 function doRespawn(){
@@ -1262,6 +1294,12 @@ function netConnect(){
           name:d.name||'?',angle:d.angle||0,bloodR:d.bloodR||28,df:d.df||0,
           inventory:d.inv||{}});
       }
+    });
+    chan.subscribe('corpse2',m=>{
+      let d=m.data;if(!d||!d.cid)return;
+      if(!_allCorpses.find(c=>c.cid===d.cid))
+        _allCorpses.push({cid:d.cid,x:d.x,y:d.y,team:d.team,cls:d.cls||'fusil',
+          name:d.name||'?',angle:d.angle||0,blood:d.blood||28,df:d.df||0});
     });
     chan.subscribe('tix',m=>{let d=m.data;if(d)tickets=d;updateHUD();});
         // Handle remote player respawn — fresh entity, corpse stays in _corpses[]
@@ -1959,17 +1997,13 @@ function drawDroneFPV(dt){
 
 // ── DEAD BODIES — persistent corpses drawn independently ─────────────────────
 function drawDeadBodies(){
-  _corpses.forEach(c=>{
+  _allCorpses.forEach(c=>{
     try{
       let sx=c.x-camX,sy=c.y-camY;
-      if(Math.abs(sx)>W+120||Math.abs(sy)>H+120)return;
-      // Blood pool
-      if(c.bloodR>2){
-        ctx.save();ctx.globalAlpha=0.5;ctx.fillStyle='rgba(80,0,0,0.85)';
-        ctx.beginPath();ctx.ellipse(sx,sy+8,c.bloodR,c.bloodR*.35,0,0,Math.PI*2);
-        ctx.fill();ctx.restore();
-      }
-      // Corpse sprite — params: sx,sy,dir,team,cls,isAlly,name,hp,isMe,moving,isShooting,dead,dying,wFr,sFr,bloodR
+      if(Math.abs(sx)>W+100||Math.abs(sy)>H+100)return;
+      ctx.save();ctx.globalAlpha=0.55;ctx.fillStyle='#400';
+      ctx.beginPath();ctx.ellipse(sx,sy+8,c.blood||28,(c.blood||28)*.3,0,0,Math.PI*2);
+      ctx.fill();ctx.restore();
       drawSoldierSprite(sx,sy,c.angle||0,c.team,c.cls||'fusil',
         c.team===myTeam,c.name||'',0,false,false,false,true,false,0,0,0);
     }catch(e){}
@@ -2177,18 +2211,7 @@ function loop(ts){
     checkLootTarget();
     // Corps persistants — pas de TTL, restent toute la partie
   }
-  // Respawn timer (must be OUTSIDE if(!pDead) block)
-  if(pDead){
-    pRespawnT-=dt;
-    let _dtt2=document.getElementById('dtt');
-    if(pRespawnT>0){
-      if(_dtt2)_dtt2.textContent='Respawn dans '+Math.ceil(pRespawnT)+'s';
-    }else if(!_respawnReady){
-      _respawnReady=true;
-      if(_dtt2)_dtt2.textContent='Prêt !';
-      let _rb=document.getElementById('respawnBtn');
-      if(_rb){_rb.disabled=false;_rb.style.background='#1A3A1A';
-        _rb.style.color='#44FF44';_rb.style.borderColor='#44FF44';_rb.style.cursor='pointer';}
+  // (respawn handled by clickRespawn button)
     }
   }
 
