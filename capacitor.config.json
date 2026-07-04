@@ -1,6 +1,6 @@
 {
-  "appId": "io.frontline.game",
-  "appName": "frontline.io",
+  "appId": "io.frontline.pokx",
+  "appName": "frontline.io POKX",
   "webDir": "www",
   "bundledWebRuntime": false,
   "server": {
