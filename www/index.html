@@ -86,9 +86,9 @@ body{background:#0A0D08;overflow:hidden;font-family:'Courier New',monospace;user
   border-radius:4px;overflow:hidden}
 #rli{height:100%;background:#C8FF5A;border-radius:4px;width:0}
 #bloot{position:fixed;left:50%;transform:translateX(-50%);bottom:290px;
-  background:rgba(255,160,0,.9);border:2px solid #FFD700;color:#000;
-  padding:8px 18px;border-radius:18px;font-size:12px;font-family:'Courier New',monospace;
-  letter-spacing:2px;cursor:pointer;z-index:62;display:none;pointer-events:auto;font-weight:bold}
+  background:rgba(255,160,0,.88);border:1.5px solid #FFD700;color:#000;
+  padding:5px 10px;border-radius:12px;font-size:10px;font-family:'Courier New',monospace;
+  letter-spacing:1px;cursor:pointer;z-index:62;display:none;pointer-events:auto;font-weight:bold}
 /* Inventory */
 #inv{position:fixed;inset:0;background:rgba(0,0,0,.93);z-index:200;display:none;
   flex-direction:column;font-family:'Courier New',monospace}
@@ -1057,15 +1057,15 @@ function checkLootTarget(){
   if(pDead)return;
   let closest=null,cd=Infinity;
   // Local dead bodies
-  deadBodies.forEach(b=>{let d=Math.hypot(b.x-px,b.y-py);if(d<150&&d<cd){cd=d;closest=b;}});
+  deadBodies.forEach(b=>{let d=Math.hypot(b.x-px,b.y-py);if(d<55&&d<cd){cd=d;closest=b;}});
   // Remote bodies (persistent)
-  remoteBodies.forEach(b=>{let d=Math.hypot(b.x-px,b.y-py);if(d<150&&d<cd){cd=d;closest=b;}});
+  remoteBodies.forEach(b=>{let d=Math.hypot(b.x-px,b.y-py);if(d<55&&d<cd){cd=d;closest=b;}});
   // Live remote players that just died (in remotes[id].dead)
   Object.values(remotes).forEach(r=>{
     if(!r.dead)return;
     let bx=r.deadX||r.x, by=r.deadY||r.y;
     let d=Math.hypot(bx-px,by-py);
-    if(d<150&&d<cd){cd=d;
+    if(d<55&&d<cd){cd=d;
       closest={x:bx,y:by,team:r.team,cls:r.cls,name:r.name||'?',
                angle:r.deadAngle||0,bloodR:30,inventory:r.deadInv||{}};}
   });
@@ -1572,11 +1572,7 @@ function drawCaps(){
     let sx=cp.wx-camX,sy=cp.wy-camY;
     if(Math.abs(sx)>W+300||Math.abs(sy)>H+300)return;
     let pct=cp.capProg/CAP_T;
-    // Zone
-    let col=cp.team==='UA'?'rgba(0,100,255,0.18)':cp.team==='RU'?'rgba(255,30,30,0.18)':'rgba(255,255,255,0.08)';
-    ctx.fillStyle=col;ctx.beginPath();ctx.arc(sx,sy,CAP_R,0,Math.PI*2);ctx.fill();
-    ctx.strokeStyle=cp.team==='UA'?'rgba(0,120,255,0.35)':cp.team==='RU'?'rgba(255,40,40,0.35)':'rgba(255,255,255,0.18)';
-    ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(sx,sy,CAP_R,0,Math.PI*2);ctx.stroke();
+    // Zone circle supprimée — visible uniquement sur minimap
     // Flag pole
     ctx.fillStyle='rgba(0,0,0,0.8)';ctx.fillRect(sx-2,sy-24,4,24);
     if(cp.team==='UA'){ctx.fillStyle='#4488FF';ctx.fillRect(sx+2,sy-24,16,5);ctx.fillStyle='#FFD700';ctx.fillRect(sx+2,sy-19,16,5);}
@@ -1907,25 +1903,33 @@ function drawDroneFPV(dt){
 
 // ── DEAD BODIES — persistent corpses drawn independently ─────────────────────
 function drawDeadBodies(){
-  // Local dead bodies (own team + enemies killed locally)
+  // Local dead bodies (own deaths)
   deadBodies.forEach(b=>{
     let sx=b.x-camX,sy=b.y-camY;
     if(Math.abs(sx)>W+80||Math.abs(sy)>H+80)return;
-    drawSoldierSprite(sx,sy,b.angle||0,b.team,b.cls||'fusil',false,b.name||'',0,false,
-      true,b.deathFrame||0,0.8);
-    ctx.save();ctx.globalAlpha=0.5;ctx.fillStyle='#440000';
-    ctx.beginPath();ctx.ellipse(sx,sy+8,b.bloodR||28,7,0,0,Math.PI*2);ctx.fill();
-    ctx.restore();
+    // Blood pool
+    if(b.bloodR>0){
+      let gr=ctx.createRadialGradient(sx,sy+8,1,sx,sy+8,b.bloodR);
+      gr.addColorStop(0,'rgba(100,0,0,0.7)');gr.addColorStop(1,'rgba(60,0,0,0)');
+      ctx.fillStyle=gr;ctx.beginPath();ctx.ellipse(sx,sy+8,b.bloodR,b.bloodR*.4,0,0,Math.PI*2);ctx.fill();
+    }
+    // Corpse sprite (dead=true, correct param order)
+    drawSoldierSprite(sx,sy,b.angle||0,b.team,b.cls||'fusil',
+      b.team===myTeam,b.name||'',0,false,false,false,true,false,0,0,0);
   });
-  // Remote dead bodies (enemies/allies killed remotely, persistent)
+  // Remote dead bodies (persistent — enemies/allies from network)
   remoteBodies.forEach(b=>{
     let sx=b.x-camX,sy=b.y-camY;
     if(Math.abs(sx)>W+80||Math.abs(sy)>H+80)return;
-    drawSoldierSprite(sx,sy,b.angle||0,b.team,b.cls||'fusil',false,b.name||'',0,false,
-      true,b.deathFrame||0,0.8);
-    ctx.save();ctx.globalAlpha=0.5;ctx.fillStyle='#440000';
-    ctx.beginPath();ctx.ellipse(sx,sy+8,b.bloodR||28,7,0,0,Math.PI*2);ctx.fill();
-    ctx.restore();
+    // Blood pool
+    if(b.bloodR>0){
+      let gr=ctx.createRadialGradient(sx,sy+8,1,sx,sy+8,b.bloodR);
+      gr.addColorStop(0,'rgba(100,0,0,0.7)');gr.addColorStop(1,'rgba(60,0,0,0)');
+      ctx.fillStyle=gr;ctx.beginPath();ctx.ellipse(sx,sy+8,b.bloodR,b.bloodR*.4,0,0,Math.PI*2);ctx.fill();
+    }
+    // Corpse sprite (dead=true, correct param order)
+    drawSoldierSprite(sx,sy,b.angle||0,b.team,b.cls||'fusil',
+      b.team===myTeam,b.name||'',0,false,false,false,true,false,0,0,0);
   });
 }
 
