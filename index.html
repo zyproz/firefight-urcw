@@ -547,14 +547,18 @@ function generateMap(){
 
 // ── CAPTURE POINTS ────────────────────────────────────────────────
 const CAPS=[
-  // Ligne centrale (objectifs principaux)
-  {id:'A',name:'OBJ ALFA',  wx:~~(WW*0.2),wy:~~(WH*0.5),team:null,capProg:0,capTeam:null},
-  {id:'B',name:'OBJ BRAVO', wx:~~(WW*0.5),wy:~~(WH*0.5),team:null,capProg:0,capTeam:null},
-  {id:'C',name:'OBJ CHARLIE',wx:~~(WW*0.8),wy:~~(WH*0.5),team:null,capProg:0,capTeam:null},
-  // Tranchées nord (objectifs haut de map)
-  {id:'D',name:'TRANCHÉE DELTA',wx:~~(WW*0.25),wy:~~(WH*0.12),team:null,capProg:0,capTeam:null},
-  {id:'E',name:'TRANCHÉE ECHO', wx:~~(WW*0.5), wy:~~(WH*0.1), team:null,capProg:0,capTeam:null},
-  {id:'F',name:'TRANCHÉE FOXTROT',wx:~~(WW*0.75),wy:~~(WH*0.12),team:null,capProg:0,capTeam:null},
+  // Tranchées NORD (y≈30%) — entre top et ligne centrale
+  {id:'D',name:'TRANCHÉE DELTA',  wx:~~(WW*0.2),wy:~~(WH*0.3),team:null,capProg:0,capTeam:null},
+  {id:'E',name:'TRANCHÉE ECHO',   wx:~~(WW*0.5),wy:~~(WH*0.3),team:null,capProg:0,capTeam:null},
+  {id:'F',name:'TRANCHÉE FOXTROT',wx:~~(WW*0.8),wy:~~(WH*0.3),team:null,capProg:0,capTeam:null},
+  // Objectifs CENTRAUX (y=50%)
+  {id:'A',name:'OBJ ALFA',    wx:~~(WW*0.2),wy:~~(WH*0.5),team:null,capProg:0,capTeam:null},
+  {id:'B',name:'OBJ BRAVO',   wx:~~(WW*0.5),wy:~~(WH*0.5),team:null,capProg:0,capTeam:null},
+  {id:'C',name:'OBJ CHARLIE', wx:~~(WW*0.8),wy:~~(WH*0.5),team:null,capProg:0,capTeam:null},
+  // Tranchées SUD (y≈70%) — entre ligne centrale et bas
+  {id:'G',name:'TRANCHÉE GOLF',   wx:~~(WW*0.2),wy:~~(WH*0.7),team:null,capProg:0,capTeam:null},
+  {id:'H',name:'TRANCHÉE HOTEL',  wx:~~(WW*0.5),wy:~~(WH*0.7),team:null,capProg:0,capTeam:null},
+  {id:'I',name:'TRANCHÉE INDIA',  wx:~~(WW*0.8),wy:~~(WH*0.7),team:null,capProg:0,capTeam:null},
 ];
 
 // ── GAME STATE ────────────────────────────────────────────────────
@@ -800,15 +804,12 @@ function fireBullet(){
   if(pAmmo===0)tryAutoReload();
   updateHUD();playSound(wpn.snd||'r',.3);
   chan&&chan.publish('shot',{...b,id:myId});
-  // Realistic muzzle flash
+  // Muzzle flash particle
   let _mfx=pInVehicle?pInVehicle.wx:px+Math.cos(pdir)*16;
   let _mfy=pInVehicle?pInVehicle.wy:py+Math.sin(pdir)*16;
-  particles.push({x:_mfx,y:_mfy,vx:Math.cos(pdir)*(15+Math.random()*25),
-    vy:Math.sin(pdir)*(15+Math.random()*25),
-    r:3+Math.random()*4,life:0.06,maxLife:0.06,
-    col:'#FFF8E0',col2:'#FF8800',type:'muzzle'});
-  particles.push({x:_mfx,y:_mfy,vx:(Math.random()-.5)*30,vy:(Math.random()-.5)*30,
-    r:2+Math.random()*3,life:0.08,maxLife:0.08,col:'#D0D0C0',col2:'#808070',type:'smoke'});
+  particles.push({x:_mfx,y:_mfy,
+    vx:Math.cos(pdir)*(20+Math.random()*30),vy:Math.sin(pdir)*(20+Math.random()*30),
+    r:3+Math.random()*4,life:0.06,maxLife:0.06,col:'#FFF8C0',col2:'#FF8800'});
 }
 
 
@@ -934,7 +935,11 @@ function tryVehicle(){
     if(pInVehicle.passengers)pInVehicle.passengers=pInVehicle.passengers.filter(id=>id!==myId);
     // Libérer le véhicule si complètement vide
     if(!pInVehicle.driver&&!(pInVehicle.passengers?.length))pInVehicle.available=true;
-    pInVehicle=null;showHint('Sorti');updateHUD();return;
+    pInVehicle=null;
+    // Publish position immediately so allies see correct exit location
+    chan&&chan.publish('pos',{id:myId,name:myName,x:px,y:py,dir:pdir,
+      team:myTeam,cls:myCls,hp:php,dead:false,inVeh:null,moving:false,wfr:0,sfr:0});
+    showHint('Sorti');updateHUD();return;
   }
   // Entrer dans un véhicule proche (occupé ou libre)
   let nearest=null,nd=Infinity;
@@ -1169,10 +1174,8 @@ function netConnect(){
       if(d.inVeh&&d.vehX!==undefined){
         let v=vehicles.find(vv=>vv.id===d.inVeh);
         if(v){
-          // Smooth interpolation: store target, lerp in draw loop
-          v._twx=d.vehX;v._twy=d.vehY;
-          if(d.vehDir!==undefined)v._tdir=d.vehDir;
-          if(v.wx===undefined){v.wx=d.vehX;v.wy=d.vehY;v.dir=d.vehDir||0;}
+          if(remotes[d.id]){remotes[d.id].x=d.vehX;remotes[d.id].y=d.vehY;}
+          v.wx=d.vehX;v.wy=d.vehY;if(d.vehDir!==undefined)v.dir=d.vehDir;
           v.available=false;
           if(d.isDriver){
             v.driver=d.id; // conducteur
@@ -1595,16 +1598,17 @@ function drawCaps(){
 function drawBulletsFn(dt){
   for(let i=bullets.length-1;i>=0;i--){
     let b=bullets[i];b.x+=b.dx*dt;b.y+=b.dy*dt;b.life-=dt;
-    if(b.life<=0||isBlocked(b.x,b.y)||hasCover(b.x,b.y)){
+    if(b.life<=0||isBlocked(b.x,b.y)){
       if(b.expl>0)spawnExplosion(b.x,b.y,b.expl,b.dmg,b.owner,b.team);
-      else{
-        // Dust/debris impact
-        for(let _di=0;_di<3;_di++){
-          let _da=Math.atan2(b.dy,b.dx)+Math.PI+(Math.random()-.5)*1.2;
-          particles.push({x:b.x,y:b.y,vx:Math.cos(_da)*(20+Math.random()*40),
-            vy:Math.sin(_da)*(20+Math.random()*40),
-            r:1+Math.random()*2,life:0.18,maxLife:0.18,
-            col:'#C8B870',col2:'#806040',type:'dust'});
+      else if(b.life<=0){
+        // Dust/debris impact at bullet end (visual only — no cover computation)
+        for(let _di=0;_di<4;_di++){
+          let _da=Math.atan2(b.dy,b.dx)+Math.PI+(Math.random()-.5)*1.4;
+          let _spd=25+Math.random()*45;
+          particles.push({x:b.x,y:b.y,
+            vx:Math.cos(_da)*_spd,vy:Math.sin(_da)*_spd,
+            r:1.2+Math.random()*2,life:0.22,maxLife:0.22,
+            col:'#C8B870',col2:'#806040'});
         }
       }
       bullets.splice(i,1);continue;
@@ -1900,6 +1904,146 @@ function drawDroneFPV(dt){
   _drawDroneAt(sx,sy,droneDir,myTeam,1);
 }
 
+
+// ── DEAD BODIES — persistent corpses drawn independently ─────────────────────
+function drawDeadBodies(){
+  // Local dead bodies (own team + enemies killed locally)
+  deadBodies.forEach(b=>{
+    let sx=b.x-camX,sy=b.y-camY;
+    if(Math.abs(sx)>W+80||Math.abs(sy)>H+80)return;
+    drawSoldierSprite(sx,sy,b.angle||0,b.team,b.cls||'fusil',false,b.name||'',0,false,
+      true,b.deathFrame||0,0.8);
+    ctx.save();ctx.globalAlpha=0.5;ctx.fillStyle='#440000';
+    ctx.beginPath();ctx.ellipse(sx,sy+8,b.bloodR||28,7,0,0,Math.PI*2);ctx.fill();
+    ctx.restore();
+  });
+  // Remote dead bodies (enemies/allies killed remotely, persistent)
+  remoteBodies.forEach(b=>{
+    let sx=b.x-camX,sy=b.y-camY;
+    if(Math.abs(sx)>W+80||Math.abs(sy)>H+80)return;
+    drawSoldierSprite(sx,sy,b.angle||0,b.team,b.cls||'fusil',false,b.name||'',0,false,
+      true,b.deathFrame||0,0.8);
+    ctx.save();ctx.globalAlpha=0.5;ctx.fillStyle='#440000';
+    ctx.beginPath();ctx.ellipse(sx,sy+8,b.bloodR||28,7,0,0,Math.PI*2);ctx.fill();
+    ctx.restore();
+  });
+}
+
+
+// ══════════════════════════════════════════════════════════════════
+// VOICE CHAT — WebRTC with explicit mic permission
+// ══════════════════════════════════════════════════════════════════
+let _voiceStream=null,_voicePeers={},_voiceChan=null;
+let _speakerName=null,_speakerTimer=0,_voiceActive=false;
+let _myAudioLevel=0,_audioAnalyser=null;
+
+function requestMicPermission(){
+  // Show permission dialog
+  if(!confirm('🎙️ Chat vocal\n\nAutorisez le micro pour parler avec votre équipe ?\n\nCliquez OK pour activer.'))return;
+  initVoiceChat();
+}
+
+async function initVoiceChat(){
+  try{
+    _voiceStream=await navigator.mediaDevices.getUserMedia({
+      audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true},video:false
+    });
+    _voiceActive=true;
+    // Audio level detection
+    let _ac=new (window.AudioContext||window.webkitAudioContext)();
+    let _src=_ac.createMediaStreamSource(_voiceStream);
+    _audioAnalyser=_ac.createAnalyser();_audioAnalyser.fftSize=512;
+    _src.connect(_audioAnalyser);
+    let _buf=new Uint8Array(_audioAnalyser.frequencyBinCount);
+    function _poll(){
+      if(!_audioAnalyser)return;
+      _audioAnalyser.getByteFrequencyData(_buf);
+      let s=0;_buf.slice(0,30).forEach(v=>s+=v);
+      _myAudioLevel=s/30;
+      if(_myAudioLevel>22&&_voiceChan&&chan)
+        _voiceChan.publish('spk',{id:myId,name:myName,team:myTeam});
+      setTimeout(_poll,150);
+    }
+    _poll();
+    // Ably signaling
+    _voiceChan=realtime.channels.get('ff_vc_'+myTeam+'_'+AKEY.slice(0,6));
+    _voiceChan.subscribe('join',async m=>{
+      let d=m.data;if(!d||d.id===myId||d.team!==myTeam)return;
+      await _vcOffer(d.id);
+    });
+    _voiceChan.subscribe('offer',async m=>{
+      let d=m.data;if(!d||d.to!==myId)return;
+      let pc=_vcPC(d.from);
+      await pc.setRemoteDescription(new RTCSessionDescription(d.sdp));
+      let ans=await pc.createAnswer();await pc.setLocalDescription(ans);
+      _voiceChan.publish('answer',{from:myId,to:d.from,sdp:ans});
+    });
+    _voiceChan.subscribe('answer',async m=>{
+      let d=m.data;if(!d||d.to!==myId)return;
+      let pc=_voicePeers[d.from];if(pc)await pc.setRemoteDescription(new RTCSessionDescription(d.sdp));
+    });
+    _voiceChan.subscribe('ice',async m=>{
+      let d=m.data;if(!d||d.to!==myId)return;
+      let pc=_voicePeers[d.from];if(pc&&d.candidate)await pc.addIceCandidate(new RTCIceCandidate(d.candidate));
+    });
+    _voiceChan.subscribe('spk',m=>{
+      let d=m.data;if(!d||d.id===myId||d.team!==myTeam)return;
+      _speakerName=d.name;_speakerTimer=2.5;
+    });
+    setTimeout(()=>_voiceChan&&_voiceChan.publish('join',{id:myId,name:myName,team:myTeam}),600);
+    showNotif('🎙️ Vocal '+myTeam+' actif');
+  }catch(e){
+    showNotif('🎙️ Micro refusé: '+e.message);
+    console.warn('[Voice]',e);
+  }
+}
+
+function _vcPC(peerId){
+  try{if(_voicePeers[peerId])_voicePeers[peerId].close();}catch(e){}
+  let pc=new RTCPeerConnection({iceServers:[
+    {urls:'stun:stun.l.google.com:19302'},
+    {urls:'stun:stun2.l.google.com:19302'}
+  ]});
+  _voiceStream&&_voiceStream.getTracks().forEach(t=>pc.addTrack(t,_voiceStream));
+  pc.ontrack=e=>{
+    let audio=new Audio();audio.autoplay=true;audio.srcObject=e.streams[0];
+    audio.play().catch(()=>{});
+  };
+  pc.onicecandidate=e=>{
+    if(e.candidate&&_voiceChan)
+      _voiceChan.publish('ice',{from:myId,to:peerId,candidate:e.candidate});
+  };
+  _voicePeers[peerId]=pc;return pc;
+}
+
+async function _vcOffer(peerId){
+  let pc=_vcPC(peerId);
+  let offer=await pc.createOffer();await pc.setLocalDescription(offer);
+  _voiceChan&&_voiceChan.publish('offer',{from:myId,to:peerId,sdp:offer,team:myTeam});
+}
+
+function drawVoiceHUD(){
+  // Speaking indicator (top center)
+  if(_speakerTimer>0){
+    _speakerTimer-=1/60;
+    let a=Math.min(1,_speakerTimer*2);
+    ctx.save();
+    ctx.fillStyle=`rgba(0,0,0,${a*0.7})`;
+    let tw=ctx.measureText('🎙 '+(_speakerName||'')).width+20;
+    ctx.fillRect(W/2-tw/2-5,10,tw+10,24);
+    ctx.fillStyle=`rgba(80,255,120,${a})`;
+    ctx.font='bold 12px Courier New';ctx.textAlign='center';
+    ctx.fillText('🎙 '+(_speakerName||'?'),W/2,27);ctx.restore();
+  }
+  // Own mic level indicator
+  if(_voiceActive&&_myAudioLevel>22){
+    ctx.save();ctx.fillStyle='rgba(60,220,60,0.9)';
+    ctx.beginPath();ctx.arc(W-28,H-28,9,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='#fff';ctx.font='10px serif';ctx.textAlign='center';
+    ctx.fillText('🎙',W-28,H-24);ctx.restore();
+  }
+}
+
 function loop(ts){
   requestAnimationFrame(loop);
   let dt=Math.min((ts-lastT)/1000,.05);lastT=ts;
@@ -1984,7 +2128,7 @@ function loop(ts){
     if(rangeActive){rangeT-=dt;if(rangeT<=0)rangeActive=false;}
     updateCapture(dt);
     checkLootTarget();
-    // Corps persistants — pas de TTL
+    // Corps persistants — pas de TTL, restent toute la partie
   }
   // Respawn timer (must be OUTSIDE if(!pDead) block)
   if(pDead){pRespawnT-=dt;if(pRespawnT<=0)respawn();document.getElementById('dtt').textContent=Math.ceil(Math.max(0,pRespawnT));}
@@ -1999,11 +2143,12 @@ function loop(ts){
   drawBulletsFn(dt);
   drawExplsFn(dt);
   drawVehicles();
+  drawDeadBodies();
   drawPlayers();
   drawDroneFPV(dt);
   if(dmgFlash>0){ctx.fillStyle=`rgba(200,0,0,${dmgFlash*.4})`;ctx.fillRect(0,0,W,H);dmgFlash=Math.max(0,dmgFlash-.04);}
   drawMinimap();
-  drawVoiceIndicator();
+  drawVoiceHUD();
   if(~~(ts/100)!==~~((ts-dt*1000)/100))updateHUD();
 }
 
@@ -2054,162 +2199,16 @@ window.addEventListener('visibilitychange',()=>{
   if(!document.hidden) _ablyReconnect();
 });
 
-// ══════════════════════════════════════════════════════════════════
-// VOICE CHAT — WebRTC peer connections, Ably signaling
-// ══════════════════════════════════════════════════════════════════
-let _voiceStream=null,_voicePeers={},_voiceChan=null;
-let _speakerName=null,_speakerTimer=0;
-let _myAudioLevel=0,_voiceActive=false;
-
-async function initVoiceChat(){
-  try{
-    _voiceStream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true},video:false});
-    _voiceActive=true;
-    // Audio level monitor (detect when we speak)
-    let _ac=new AudioContext();
-    let _src=_ac.createMediaStreamSource(_voiceStream);
-    let _an=_ac.createAnalyser();_an.fftSize=256;
-    _src.connect(_an);
-    let _buf=new Uint8Array(_an.frequencyBinCount);
-    function _monLevel(){
-      _an.getByteFrequencyData(_buf);
-      let _sum=0;_buf.forEach(v=>_sum+=v);
-      _myAudioLevel=_sum/_buf.length;
-      if(_myAudioLevel>18&&_voiceChan){
-        _voiceChan.publish('speaking',{id:myId,name:myName,team:myTeam});
-      }
-      requestAnimationFrame(_monLevel);
-    }
-    _monLevel();
-    // Ably voice signaling channel (per team)
-    _voiceChan=realtime.channels.get('ff_voice_'+myTeam);
-    _voiceChan.subscribe('join',async msg=>{
-      let d=msg.data;if(!d||d.id===myId||d.team!==myTeam)return;
-      await _vcCall(d.id);
-    });
-    _voiceChan.subscribe('offer',async msg=>{
-      let d=msg.data;if(!d||d.to!==myId)return;
-      let pc=_vcCreatePC(d.from);
-      await pc.setRemoteDescription(new RTCSessionDescription(d.sdp));
-      let ans=await pc.createAnswer();await pc.setLocalDescription(ans);
-      _voiceChan.publish('answer',{from:myId,to:d.from,sdp:ans});
-    });
-    _voiceChan.subscribe('answer',async msg=>{
-      let d=msg.data;if(!d||d.to!==myId)return;
-      let pc=_voicePeers[d.from];if(pc)await pc.setRemoteDescription(new RTCSessionDescription(d.sdp));
-    });
-    _voiceChan.subscribe('ice',async msg=>{
-      let d=msg.data;if(!d||d.to!==myId)return;
-      let pc=_voicePeers[d.from];if(pc)await pc.addIceCandidate(new RTCIceCandidate(d.candidate));
-    });
-    _voiceChan.subscribe('speaking',msg=>{
-      let d=msg.data;if(!d||d.id===myId||d.team!==myTeam)return;
-      _speakerName=d.name;_speakerTimer=2.5;
-    });
-    // Announce presence to team
-    setTimeout(()=>_voiceChan.publish('join',{id:myId,name:myName,team:myTeam}),500);
-    showNotif('🎙️ Vocal '+myTeam+' activé');
-  }catch(e){
-    console.log('[Voice] Mic unavailable:',e.message);
-    showNotif('🎙️ Micro non disponible');
-  }
-}
-
-function _vcCreatePC(peerId){
-  if(_voicePeers[peerId])try{_voicePeers[peerId].close();}catch(e){}
-  let pc=new RTCPeerConnection({iceServers:[{urls:'stun:stun.l.google.com:19302'},{urls:'stun:stun1.l.google.com:19302'}]});
-  if(_voiceStream)_voiceStream.getTracks().forEach(t=>pc.addTrack(t,_voiceStream));
-  pc.ontrack=e=>{
-    let audio=document.createElement('audio');audio.autoplay=true;
-    audio.srcObject=e.streams[0];document.body.appendChild(audio);
-  };
-  pc.onicecandidate=e=>{
-    if(e.candidate&&_voiceChan)
-      _voiceChan.publish('ice',{from:myId,to:peerId,candidate:e.candidate});
-  };
-  _voicePeers[peerId]=pc;return pc;
-}
-
-async function _vcCall(peerId){
-  let pc=_vcCreatePC(peerId);
-  let offer=await pc.createOffer();await pc.setLocalDescription(offer);
-  _voiceChan&&_voiceChan.publish('offer',{from:myId,to:peerId,sdp:offer,team:myTeam});
-}
-
-function drawVoiceIndicator(){
-  if(!_voiceActive)return;
-  // Own mic level indicator
-  if(_myAudioLevel>18){
-    ctx.save();ctx.fillStyle='rgba(80,255,80,0.85)';ctx.strokeStyle='#fff';ctx.lineWidth=1.5;
-    ctx.beginPath();ctx.arc(W-30,H-30,10,0,Math.PI*2);ctx.fill();ctx.stroke();
-    ctx.fillStyle='#fff';ctx.font='bold 9px Courier';ctx.textAlign='center';
-    ctx.fillText('🎙',W-30,H-26);ctx.restore();
-  }
-  // Speaking teammate name
-  if(_speakerTimer>0){
-    _speakerTimer-=1/60;
-    let _a=Math.min(1,_speakerTimer);
-    ctx.save();ctx.fillStyle=`rgba(0,0,0,${_a*0.65})`;
-    ctx.fillRect(W/2-80,18,160,26);
-    ctx.fillStyle=`rgba(80,255,120,${_a})`;
-    ctx.font='bold 11px Courier New';ctx.textAlign='center';
-    ctx.fillText('🎙 '+(_speakerName||'?'),W/2,36);ctx.restore();
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════
-// COVER MAP — detect buildings from tile pixels
-// ═══════════════════════════════════════════════════════════════
-let coverMap=null;
-const COV_CELL=16; // 1 cell = 16 world px
-const COV_W=Math.ceil(2560/COV_CELL);
-const COV_H=Math.ceil(2560/COV_CELL);
-
-function buildCoverMap(){
-  coverMap=new Uint8Array(COV_W*COV_H);
-  const TW=512,TH=512;
-  for(let c=0;c<5;c++){
-    for(let r=0;r<5;r++){
-      let img=IMG[`tile${c}${r}`];
-      if(!img||!img.complete)continue;
-      let tmp=document.createElement('canvas');tmp.width=TW;tmp.height=TH;
-      let tc=tmp.getContext('2d');tc.drawImage(img,0,0,TW,TH);
-      let px=tc.getImageData(0,0,TW,TH).data;
-      for(let ty=0;ty<TH;ty+=COV_CELL){
-        for(let tx=0;tx<TW;tx+=COV_CELL){
-          // Average over cell
-          let rt=0,gt=0,bt=0,cnt=0;
-          for(let dy=0;dy<Math.min(COV_CELL,TH-ty);dy+=4){
-            for(let dx=0;dx<Math.min(COV_CELL,TW-tx);dx+=4){
-              let pi=((ty+dy)*TW+(tx+dx))*4;
-              rt+=px[pi];gt+=px[pi+1];bt+=px[pi+2];cnt++;
-            }
-          }
-          rt/=cnt;gt/=cnt;bt/=cnt;
-          // Grass: green dominant (green > red*1.1, green > 55)
-          // Buildings/walls: gray-beige (less green dominant, mid luminance)
-          let lum=(rt+gt+bt)/3;
-          let isCover=!(gt>rt*1.08&&gt>55)&&lum>30&&lum<200;
-          if(isCover){
-            let wx=c*TW+tx,wy=r*TH+ty;
-            let cx=~~(wx/COV_CELL),cy=~~(wy/COV_CELL);
-            if(cx<COV_W&&cy<COV_H)coverMap[cy*COV_W+cx]=1;
-          }
-        }
-      }
-    }
-  }
-  console.log('[Cover] Map built:',COV_W+'x'+COV_H,'cells');
-}
-
-function hasCover(wx,wy){
-  if(!coverMap)return false;
-  let cx=~~(wx/COV_CELL),cy=~~(wy/COV_CELL);
-  if(cx<0||cy<0||cx>=COV_W||cy>=COV_H)return false;
-  return coverMap[cy*COV_W+cx]===1;
-}
-
 </script>
 <script src="https://cdn.ably.io/lib/ably.min-1.js"></script>
+
+<button id="micBtn" onclick="requestMicPermission();this.style.display='none'"
+  style="display:none;position:fixed;bottom:90px;left:10px;z-index:200;
+  background:rgba(0,80,0,0.85);color:#afffaf;border:1px solid #3f3;
+  border-radius:8px;padding:8px 12px;font-size:13px;font-family:Courier New;
+  align-items:center;gap:6px;cursor:pointer">
+  🎙️ Activer vocal
+</button>
+
 </body>
 </html>
