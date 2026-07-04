@@ -329,7 +329,7 @@ const CLS={
   fusil:    {name:'FUSILIER',  wpn:'AK74M',ammo:30,mags:4,gren:2,sp:'ammo',spN:2,spI:'📦',hp:110,spd:1.0},
   medic:    {name:'MÉDECIN',   wpn:'AK74M',ammo:30,mags:3,gren:1,sp:'medkit',spN:2,spI:'💉',hp:100,spd:1.0},
   antitank: {name:'ANTI-CHAR', wpn:'AK105',ammo:30,mags:3,gren:1,sp:'rpg',spN:2,spI:'🚀',hp:100,spd:.85},
-  sniper:   {name:'SNIPER',    wpn:'SVD',  ammo:10,mags:5,gren:1,sp:'range',spN:1,spI:'🔭',hp:90, spd:.9},
+  sniper:   {name:'SNIPER',    wpn:'SVD',  ammo:5, mags:5,gren:1,sp:'range',spN:1,spI:'🔭',hp:90, spd:.9},
   drone:    {name:'OP.DRONE',  wpn:'AK74M',ammo:30,mags:3,gren:1,sp:'drone',spN:1,spI:'🚁',hp:100,spd:1.0}
 };
 
@@ -337,7 +337,7 @@ const CLS={
 const WPN={
   AK74M:{dmg:22,rof:108,rng:380,auto:1,bSpd:650,bSz:2.5,col:'#FFDD44',snd:'r'},
   AK105:{dmg:22,rof:108,rng:430,auto:1,bSpd:680,bSz:2.5,col:'#88AAFF',snd:'rs'},
-  SVD:  {dmg:75,rof:900,rng:820,auto:0,bSpd:950,bSz:3,  col:'#FF8833',snd:'s'},
+  SVD:  {dmg:120,rof:1100,rng:900,auto:0,bSpd:1000,bSz:3.5,col:'#FF8833',snd:'s'},
   RPG7: {dmg:380,rof:3500,rng:600,auto:0,bSpd:480,bSz:6,col:'#FF6600',snd:'x',expl:110},
   MGVEH:{dmg:28,rof:85,rng:520,auto:1,bSpd:700,bSz:3,col:'#CCCCCC',snd:'r'},
   CANNON:{dmg:550,rof:4200,rng:900,auto:0,bSpd:600,bSz:8,col:'#888888',snd:'x',expl:140}
@@ -485,7 +485,11 @@ const ITEMS={
   medkit:{icon:'💉',name:'Kit Médical',type:'use'},
   drone:{icon:'🚁',name:'Drone FPV',type:'sp'},
   range:{icon:'🔭',name:'Télémètre',type:'sp'},
-  rpg:{icon:'🚀',name:'RPG-7',type:'sp'}
+  rpg:{icon:'🚀',name:'RPG-7',type:'sp'},
+  'AK74M_m':{icon:'📎',name:'Chargeur AK-74M (30rds)',type:'ammo'},
+  'AK105_m':{icon:'📎',name:'Chargeur AK-105 (30rds)',type:'ammo'},
+  'SVD_m':  {icon:'📎',name:'Chargeur SVD (5rds)',    type:'ammo'},
+  syringe:  {icon:'💉',name:'Seringue de soin',        type:'use'},
 };
 let pBag={},pSlots=['AK74M','grenade','drone'];
 let invOpen=false,selItem=null,selSlot=-1,invIsLoot=false,lootBody=null;
@@ -494,8 +498,16 @@ function bagAdd(k,n=1){pBag[k]=(pBag[k]||0)+n;}
 function initBag(){
   pBag={};
   let cd=CLS[myCls];
-  pBag[cd.wpn]=1;pBag[cd.wpn+'_a']=cd.ammo;pBag[cd.wpn+'_m']=cd.mags;
-  bagAdd('grenade',cd.gren);bagAdd(cd.sp,cd.spN);bagAdd('medkit',1);
+  // Arme principale + munitions dans le chargeur + chargeurs de rechange
+  pBag[cd.wpn]=1;
+  pBag[cd.wpn+'_a']=cd.ammo;
+  pBag[cd.wpn+'_m']=cd.mags;
+  // Grenades + capacité spéciale + seringue universelle
+  bagAdd('grenade',cd.gren);
+  bagAdd(cd.sp,cd.spN);
+  bagAdd('syringe',1); // seringue pour tous
+  // Chargeurs comme objets lootables séparés (même count que _m)
+  if(cd.wpn!=='RPG7') bagAdd(cd.wpn+'_m',0); // s'assure que la clé existe
   pSlots=[cd.wpn,'grenade',cd.sp];
 }
 
@@ -570,7 +582,7 @@ function doSpawn(){
   document.getElementById('hud').style.display='block';
   ['joy','bfire','bgren','bab','bveh','bmap','binv'].forEach(id=>{
     let el=document.getElementById(id);if(el)el.style.display='flex';});
-  if(myCls==='medic')document.getElementById('bheal').style.display='flex';
+  document.getElementById('bheal').style.display='flex'; // seringue pour tous
   updateAbBtn();gameOn=true;updateHUD();netConnect();
 }
 
@@ -703,8 +715,13 @@ function useAbility(){
       isReloading=false;document.getElementById('rlbar').style.display='none';
       pSpecial--;showNotif('📦 Pack Munitions — rechargé!');break;
     case 'rpg':
-      if(pWeapon!=='RPG7'){pWeapon='RPG7';pAmmo=2;pMags=0;showHint('🚀 RPG-7 équipé (2 roquettes)');}
-      else{pWeapon=CLS[myCls].wpn;pAmmo=pBag[pWeapon+'_a']||0;pMags=pBag[pWeapon+'_m']||0;showHint('Retour fusil');}
+      if(pWeapon!=='RPG7'){
+        pWeapon='RPG7';pAmmo=pBag.rpg||2;pMags=0;
+        showNotif('🚀 RPG-7 — '+pAmmo+' roquette(s). APPUYER sur l\'écran pour tirer !');
+      }else{
+        pWeapon=CLS[myCls].wpn;pAmmo=pBag[pWeapon+'_a']||0;pMags=pBag[pWeapon+'_m']||0;
+        showHint('↩ Retour '+CLS[myCls].wpn);
+      }
       return;
     case 'range':
       rangeActive=true;rangeT=10;pSpecial--;showNotif('🔭 Télémètre — 10s');break;
@@ -740,20 +757,30 @@ function fireDrone(){
 }
 
 function useHeal(){
-  if(myCls!=='medic'||pDead)return;
-  let healed=false;
-  Object.values(remotes).forEach(r=>{
-    if(healed||r.dead||r.team!==myTeam)return;
-    if(Math.hypot(r.x-px,r.y-py)<80&&(r.hp||100)<100){
-      chan&&chan.publish('heal',{target:r.id,amt:Math.min(50,100-(r.hp||0)),from:myId});
-      showNotif('💉 Allié soigné!');healed=true;
-      if(pSpecial>0){pSpecial--;updateAbBtn();}
-    }
-  });
-  if(!healed&&php<pMaxHp&&pMedkit>0){
-    let heal=Math.min(50,pMaxHp-php);php+=heal;pMedkit--;
-    showNotif('💉 Soigné +'+heal+'PV!');updateHUD();
-  }else if(!healed)showHint('Pas de cible à soigner');
+  if(pDead)return;
+  if(myCls==='medic'){
+    // Médecin: soigne un allié proche ou lui-même (+50 PV)
+    let healed=false;
+    Object.values(remotes).forEach(r=>{
+      if(healed||r.dead||r.team!==myTeam)return;
+      if(Math.hypot(r.x-px,r.y-py)<80&&(r.hp||100)<100){
+        chan&&chan.publish('heal',{target:r.id,amt:Math.min(50,100-(r.hp||0)),from:myId});
+        showNotif('💉 Allié soigné!');healed=true;
+        if(pSpecial>0){pSpecial--;updateAbBtn();}
+      }
+    });
+    if(!healed&&php<pMaxHp&&pMedkit>0){
+      let heal=Math.min(50,pMaxHp-php);php+=heal;pMedkit--;
+      showNotif('💉 Soigné +'+heal+'PV!');updateHUD();
+    }else if(!healed)showHint('Pas de cible à soigner');
+  } else {
+    // Autres classes: seringue auto — soigne seulement soi-même (+30 PV)
+    if(pMedkit<=0){showHint('Plus de seringue !');return;}
+    if(php>=pMaxHp){showHint('Déjà au maximum !');return;}
+    let heal=Math.min(30,pMaxHp-php);php+=heal;pMedkit--;
+    showNotif('💊 Soigné +'+heal+' PV !');updateHUD();
+    if(pMedkit<=0)document.getElementById('bheal').style.display='none';
+  }
 }
 
 function updateAbBtn(){
@@ -901,7 +928,7 @@ function renderInvGrid(bag){
   sp.textContent='▶ MON SAC';g.appendChild(sp);
   let myIt=[];
   ['AK74M','AK105','SVD','RPG7'].forEach(w=>{if(bag[w])myIt.push({id:w,c:bag[w],ex:bag[w+'_a']||0});});
-  ['grenade','ammo','medkit','drone','range','rpg'].forEach(k=>{if((bag[k]||0)>0)myIt.push({id:k,c:bag[k]});});
+  ['grenade','ammo','medkit','drone','range','rpg','AK74M_m','AK105_m','SVD_m','syringe'].forEach(k=>{if((bag[k]||0)>0)myIt.push({id:k,c:bag[k]});});
   if(!myIt.length){
     let e=document.createElement('div');e.style='grid-column:span 4;color:rgba(255,255,255,.3);font-size:10px;text-align:center;padding:6px';
     e.textContent='Vide';g.appendChild(e);
@@ -920,7 +947,7 @@ function renderInvGrid(bag){
     sp2.textContent='💀 '+(lootBody.name||'?');g.appendChild(sp2);
     let dIt=[];
     ['AK74M','AK105','SVD','RPG7'].forEach(w=>{if(deadBag[w])dIt.push({id:w,c:deadBag[w]});});
-    ['grenade','ammo','medkit','drone','range','rpg'].forEach(k=>{if((deadBag[k]||0)>0)dIt.push({id:k,c:deadBag[k]});});
+    ['grenade','ammo','medkit','drone','range','rpg','AK74M_m','AK105_m','SVD_m','syringe'].forEach(k=>{if((deadBag[k]||0)>0)dIt.push({id:k,c:deadBag[k]});});
     if(!dIt.length){
       let e=document.createElement('div');e.style='grid-column:span 4;color:rgba(255,255,255,.3);font-size:10px;text-align:center;padding:6px';
       e.textContent='Vide';g.appendChild(e);
@@ -957,9 +984,12 @@ function valInv(){
     pAmmo=pBag[pWeapon+'_a']||0;pMags=pBag[pWeapon+'_m']||0;
   }
   pGren=pBag.grenade||0;
+  pMedkit=pBag.syringe||pBag.medkit||0;
+  // Resync des chargeurs après loot
+  pMags=pBag[pWeapon+'_m']||0;
   if(invIsLoot&&lootBody){
     Object.entries(lootBody.inventory).forEach(([k,v])=>{if(v>0)(pBag[k]=(pBag[k]||0)+v);});
-    lootBody.inventory={};showNotif('Loot récupéré!');
+    lootBody.inventory={};showNotif('✅ Loot récupéré!');
   }
   updateHUD();closeInv();
 }
@@ -1674,7 +1704,7 @@ function loop(ts){
     // Shoot trigger
     if(!isReloading&&(shooting||mDown||keys['Space'])){
       let w=WPN[pInVehicle?(VDEFS[pInVehicle.type].wpn||'MGVEH'):pWeapon];
-      if(w?.auto||keys['Space'])fireBullet();
+      if(w)fireBullet(); // auto: ROF=fast; semi-auto: ROF=slow (RPG/SVD)
     }
     if(rangeActive){rangeT-=dt;if(rangeT<=0)rangeActive=false;}
     updateCapture(dt);
