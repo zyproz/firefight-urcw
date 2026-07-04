@@ -121,8 +121,9 @@ body{background:#0A0D08;overflow:hidden;font-family:'Courier New',monospace;user
   border-radius:7px;color:#C8FF5A;font-size:14px;letter-spacing:4px;cursor:pointer;
   font-family:'Courier New',monospace;font-weight:bold;pointer-events:auto;margin-top:4px}
 /* Dead screen */
-#ds{position:fixed;inset:0;background:rgba(0,0,0,.85);display:none;
-  align-items:center;justify-content:center;flex-direction:column;z-index:200}
+#ds{display:none;flex-direction:column;align-items:center;justify-content:center;
+  position:fixed;top:0;left:0;width:100%;height:100%;
+  background:rgba(0,0,0,0.88);z-index:300}
 #ds .dt{font-size:34px;letter-spacing:6px;color:#FF2222;text-shadow:0 0 20px rgba(255,0,0,.5)}
 #ds .dtm{font-size:16px;color:rgba(255,255,255,.55);margin-top:6px}
 /* Big map */
@@ -243,7 +244,15 @@ body{background:#0A0D08;overflow:hidden;font-family:'Courier New',monospace;user
   </div>
 </div>
 
-<div id="ds" style="display:none"><div class="dt">ÉLIMINÉ</div><div class="dtm">Respawn dans <span id="dtt">5</span>s</div></div>
+<div id="ds" style="display:none;flex-direction:column;align-items:center;justify-content:center;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.88);z-index:300">
+  <div style="color:#FF3333;font-size:28px;font-weight:bold;font-family:Courier New;letter-spacing:4px;margin-bottom:12px">VOUS ÊTES MORT</div>
+  <div style="color:#aaa;font-size:13px;font-family:Courier New;margin-bottom:20px">Votre corps reste sur la carte</div>
+  <div id="dtt" style="color:#FFD700;font-size:18px;font-family:Courier New;margin-bottom:18px">Respawn disponible dans 5s</div>
+  <button id="respawnBtn" onclick="doRespawn()" disabled
+    style="background:#222;color:#888;border:2px solid #555;border-radius:8px;
+    padding:12px 28px;font-size:16px;font-family:Courier New;cursor:not-allowed;
+    letter-spacing:2px;transition:all 0.3s">⟳ RESPAWN</button>
+</div>
 <div id="bm" style="display:none"><canvas id="bmc2" width="350" height="250"></canvas><button id="bmc" onclick="toggleMap()">✕</button></div>
 <div id="notif"></div>
 <div id="hint"></div>
@@ -1009,9 +1018,35 @@ function die(killer){
   chan&&chan.publish('died',{id:myId,x:px,y:py,team:myTeam,cls:myCls,name:myName,angle:pdir,inv:{...pBag},df:dyingFr});
 }
 
+// Respawn countdown — enables button after 5s, called from pDead timer
 function respawn(){
-  pDead=false;isDying=false;let cd=CLS[myCls];
-  // Décrémenter le ticket de son équipe au respawn
+  // Start countdown, enable button after 5s
+  let _cd=5;
+  let _btn=document.getElementById('respawnBtn');
+  let _dtt=document.getElementById('dtt');
+  if(_btn)_btn.disabled=true;
+  let _iv=setInterval(()=>{
+    _cd--;
+    if(_dtt)_dtt.textContent=_cd>0?'Respawn disponible dans '+_cd+'s':'Prêt !';
+    if(_cd<=0){
+      clearInterval(_iv);
+      if(_btn){
+        _btn.disabled=false;
+        _btn.style.background='#1A3A1A';
+        _btn.style.color='#44FF44';
+        _btn.style.borderColor='#44FF44';
+        _btn.style.cursor='pointer';
+      }
+    }
+  },1000);
+  // Immediately mark ready in timer if RESP_T already elapsed
+  if(_cd<=0&&_btn){_btn.disabled=false;_btn.style.background='#1A3A1A';}
+}
+
+function doRespawn(){
+  // Called by respawn button — creates fresh player, leaves corpse
+  pDead=false;isDying=false;
+  let cd=CLS[myCls];
   tickets[myTeam]=Math.max(0,(tickets[myTeam]||50)-1);
   chan&&chan.publish('tix',{...tickets});
   if(tickets.UA<=0||tickets.RU<=0)checkWin();
@@ -1019,11 +1054,20 @@ function respawn(){
   pAmmo=pBag[pWeapon+'_a']||cd.ammo;pMags=pBag[pWeapon+'_m']||cd.mags;
   pGren=pBag.grenade||0;pSpecial=pBag[cd.sp]||0;pMedkit=1;
   isReloading=false;document.getElementById('rlbar').style.display='none';
-  // Map 2560x2560: RU spawns left ~5%, UA spawns right ~95%
-  let _sOff=~~(Math.random()*80)-40; // ±40px random offset
+  // New spawn position (separate entity from corpse)
+  let _sOff=~~(Math.random()*80)-40;
   if(myTeam==='RU'){px=128+~~(Math.random()*60);py=WH/2+_sOff;}
   else{px=WW-180+~~(Math.random()*60);py=WH/2+_sOff;}
+  pdir=myTeam==='RU'?0:Math.PI;
   document.getElementById('ds').style.display='none';
+  // Reset respawn button for next death
+  let _btn=document.getElementById('respawnBtn');
+  if(_btn){_btn.disabled=true;_btn.style.background='#222';_btn.style.color='#888';
+    _btn.style.borderColor='#555';_btn.style.cursor='not-allowed';}
+  let _dtt=document.getElementById('dtt');
+  if(_dtt)_dtt.textContent='Respawn disponible dans 5s';
+  // Broadcast new spawn as fresh entity
+  chan&&chan.publish('spawn',{id:myId,team:myTeam,cls:myCls,name:myName,x:px,y:py});
   updateHUD();updateAbBtn();
 }
 
@@ -1236,6 +1280,17 @@ function netConnect(){
       }
     });
     chan.subscribe('tix',m=>{let d=m.data;if(d)tickets=d;updateHUD();});
+        // Handle remote player respawn — fresh entity, corpse stays in _corpses[]
+    chan.subscribe('spawn',m=>{
+      let d=m.data;if(!d||d.id===myId)return;
+      if(!remotes[d.id])remotes[d.id]={};
+      // Reset to alive — corpse in _corpses[] is separate, stays forever
+      Object.assign(remotes[d.id],{
+        id:d.id,name:d.name,team:d.team,cls:d.cls,
+        x:d.x||0,y:d.y||0,dead:false,inVeh:null,
+        deadX:undefined,deadY:undefined
+      });
+    });
     chan.subscribe('bye',m=>{let d=m.data;if(d&&d.id)delete remotes[d.id];});
     chan.subscribe('drone_hit',m=>{
       let d=m.data;if(!d||d.target!==myId||!droneActive)return;
@@ -1445,10 +1500,10 @@ function drawSoldierSprite(sx,sy,dir,team,cls,isAlly,name,hp,isMe,moving,isShoot
   // Name tag
   if(isAlly||isMe){
     ctx.font=`bold 10px Courier New`;ctx.textAlign='center';
-    let nw=ctx.measureText(name).width;
-    ctx.fillStyle=isMe?'rgba(0,200,0,0.75)':'rgba(0,100,200,0.7)';
-    ctx.fillRect(sx-nw/2-3,sy-36*scale,nw+6,12);
-    ctx.fillStyle='#FFF';ctx.fillText(name,sx,sy-26*scale);
+    // No background rect — just colored text
+    ctx.fillStyle=isMe?'#44FF44':'#44AAFF';
+    ctx.shadowColor='rgba(0,0,0,0.8)';ctx.shadowBlur=3;
+    ctx.fillText(name,sx,sy-26*scale);
   }
   // HP bar
   if(hp<(pMaxHp||100)){
@@ -1578,7 +1633,7 @@ function drawVehicleSpr(sx,sy,dir,type,team,hp,driver,dname){
   if(driver){
     ctx.font='9px Courier New';ctx.textAlign='center';
     let n=dname||'?',nw=ctx.measureText(n).width;
-    ctx.fillStyle='rgba(0,0,0,0.75)';ctx.fillRect(sx-nw/2-3,sy-def.h/2-18,nw+6,12);
+    ctx.fillStyle='rgba(0,0,0,0.75)';// No background rect
     ctx.fillStyle='#FFD700';ctx.fillText(n,sx,sy-def.h/2-8);
   }
 }
@@ -2146,6 +2201,7 @@ function loop(ts){
   vehicles.forEach(v=>{if(!v.available&&v.respawnT>0){v.respawnT-=dt;if(v.respawnT<=0){v.available=true;v.hp=VDEFS[v.type].hp;v.wx=v.spawnX;v.wy=v.spawnY;}}});
 
   // ── DRAW ──
+  ctx.globalAlpha=1;ctx.setTransform(1,0,0,1,0,0); // Reset state each frame
   ctx.fillStyle='#1A2218';ctx.fillRect(0,0,W,H);
   drawTerrain();
   drawCaps();
