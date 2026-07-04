@@ -50,8 +50,8 @@ body{background:#0A0D08;overflow:hidden;font-family:'Courier New',monospace;user
 #sb{position:absolute;top:6px;left:50%;transform:translateX(-50%);
   background:rgba(0,0,0,.8);border:1px solid rgba(255,255,255,.2);
   border-radius:14px;padding:3px 14px;font-size:11px;color:#fff;white-space:nowrap;letter-spacing:.5px}
-#mm{position:absolute;top:6px;right:6px;width:100px;height:82px;
-  border:1px solid rgba(255,255,255,.25);border-radius:5px;background:rgba(0,0,0,.6)}
+#mm{position:absolute;top:6px;right:6px;width:160px;height:112px;
+  border:1px solid rgba(255,255,255,.3);border-radius:6px;background:rgba(0,0,0,.7)}
 /* Controls */
 #joy{position:fixed;left:18px;bottom:82px;width:130px;height:130px;
   border-radius:50%;background:rgba(255,255,255,.06);border:2px solid rgba(255,255,255,.18);
@@ -61,25 +61,24 @@ body{background:#0A0D08;overflow:hidden;font-family:'Courier New',monospace;user
   transform:translate(-50%,-50%);pointer-events:none}
 .cbtn{position:fixed;border-radius:50%;cursor:pointer;z-index:61;touch-action:none;
   display:none;align-items:center;justify-content:center;font-size:24px}
-#bfire{right:12px;bottom:95px;width:80px;height:80px;
-  background:radial-gradient(circle,rgba(220,0,0,.65),rgba(140,0,0,.4));
-  border:3px solid #FF4444}
-#bgren{right:104px;bottom:106px;width:55px;height:55px;
-  background:rgba(180,100,0,.5);border:2px solid #FFAA00;font-size:20px}
-#bab{right:12px;bottom:186px;width:55px;height:55px;flex-direction:column;gap:1px;
-  background:rgba(100,0,200,.5);border:2px solid #AA44FF;font-size:18px}
-#bheal{right:80px;bottom:186px;width:55px;height:55px;
-  background:rgba(0,160,60,.5);border:2px solid #44FF88;font-size:22px}
-#bveh{right:104px;bottom:50px;width:55px;height:55px;
-  background:rgba(0,100,60,.5);border:2px solid #00CC66;font-size:20px}
+#bfire{display:none!important}
+/* 2×2 grid coins bas-droite */
+#bveh{right:14px;bottom:14px;width:62px;height:62px;
+  background:rgba(0,100,60,.55);border:2px solid #00CC66;font-size:22px}
+#bheal{right:86px;bottom:14px;width:62px;height:62px;
+  background:rgba(0,160,60,.55);border:2px solid #44FF88;font-size:24px}
+#bgren{right:86px;bottom:86px;width:62px;height:62px;
+  background:rgba(180,100,0,.55);border:2px solid #FFAA00;font-size:22px}
+#bab{right:14px;bottom:86px;width:62px;height:62px;flex-direction:column;gap:1px;
+  background:rgba(100,0,200,.55);border:2px solid #AA44FF;font-size:20px}
 #bmap{position:fixed;left:18px;bottom:16px;width:52px;height:52px;
   border-radius:8px;background:rgba(0,50,100,.7);border:1px solid rgba(0,120,255,.4);
   color:#fff;font-size:18px;cursor:pointer;z-index:61;touch-action:none;display:none;
   align-items:center;justify-content:center;pointer-events:auto}
-#binv{position:fixed;right:12px;bottom:248px;width:55px;height:55px;
-  border-radius:8px;background:rgba(80,60,0,.7);border:1px solid rgba(255,200,0,.4);
-  color:#FFD700;font-size:10px;cursor:pointer;z-index:61;touch-action:none;display:none;
-  align-items:center;justify-content:center;flex-direction:column;gap:1px;
+#binv{position:fixed;right:14px;bottom:162px;width:62px;height:18px;
+  border-radius:5px;background:rgba(80,60,0,.7);border:1px solid rgba(255,200,0,.4);
+  color:#FFD700;font-size:9px;cursor:pointer;z-index:61;touch-action:none;display:none;
+  align-items:center;justify-content:center;gap:3px;
   font-family:'Courier New',monospace;pointer-events:auto}
 #rlbar{position:fixed;bottom:152px;left:50%;transform:translateX(-50%);display:none;z-index:55}
 #rlo{width:120px;height:8px;background:rgba(0,0,0,.7);border:1px solid rgba(255,255,255,.3);
@@ -184,7 +183,7 @@ body{background:#0A0D08;overflow:hidden;font-family:'Courier New',monospace;user
     <div class="hb" id="hcls">⬛</div>
   </div>
   <div id="sb">🇺🇦 <span id="tua">50</span> — <span id="tru">50</span> 🇷🇺 | 🚩<span id="obj">0/3</span></div>
-  <canvas id="mm" width="100" height="82"></canvas>
+  <canvas id="mm" width="160" height="112"></canvas>
 </div>
 
 <div id="joy"><div id="jk"></div></div>
@@ -338,7 +337,7 @@ const WPN={
   AK74M:{dmg:22,rof:108,rng:380,auto:1,bSpd:650,bSz:2.5,col:'#FFDD44',snd:'r'},
   AK105:{dmg:22,rof:108,rng:430,auto:1,bSpd:680,bSz:2.5,col:'#88AAFF',snd:'rs'},
   SVD:  {dmg:120,rof:1100,rng:900,auto:0,bSpd:1000,bSz:3.5,col:'#FF8833',snd:'s'},
-  RPG7: {dmg:380,rof:3500,rng:600,auto:0,bSpd:480,bSz:6,col:'#FF6600',snd:'x',expl:110},
+  RPG7: {dmg:380,rof:3500,rng:300,auto:0,bSpd:420,bSz:7,col:'#FF6600',snd:'x',expl:120},
   MGVEH:{dmg:28,rof:85,rng:520,auto:1,bSpd:700,bSz:3,col:'#CCCCCC',snd:'r'},
   CANNON:{dmg:550,rof:4200,rng:900,auto:0,bSpd:600,bSz:8,col:'#888888',snd:'x',expl:140}
 };
@@ -580,7 +579,7 @@ function doSpawn(){
   pDead=false;camX=px-W/2;camY=py-H/2;
   document.getElementById('menu').style.display='none';
   document.getElementById('hud').style.display='block';
-  ['joy','bfire','bgren','bab','bveh','bmap','binv'].forEach(id=>{
+  ['joy','bgren','bab','bveh','binv'].forEach(id=>{ // bfire+bmap supprimés
     let el=document.getElementById(id);if(el)el.style.display='flex';});
   document.getElementById('bheal').style.display='flex'; // seringue pour tous
   updateAbBtn();gameOn=true;updateHUD();netConnect();
@@ -652,14 +651,18 @@ document.getElementById('bveh').addEventListener('click',tryVehicle);
 document.getElementById('bmap').addEventListener('click',toggleMap);
 document.getElementById('binv').addEventListener('click',()=>openInv(false));
 document.getElementById('bloot').addEventListener('touchend',e=>{e.preventDefault();if(lootTarget)openInv(true,lootTarget);},{passive:false});
-// Touch-to-aim: tout touch qui n'est pas le joystick ni un bouton UI = viser et tirer
+// Touch-to-aim: tout touch dans la moitié droite de l'écran = viser+tirer
+// Fonctionne aussi en statique (sans joystick actif)
 document.addEventListener('touchstart',e=>{
   for(let t of e.changedTouches){
     if(!gameOn||pDead)continue;
-    if(t.identifier===jId)continue;
-    // Ignorer les éléments UI
+    // Ignorer le touch du joystick seulement s'il est actif
+    if(jActive&&t.identifier===jId)continue;
+    // Zone gauche = joystick uniquement (30% de l'écran)
+    if(t.clientX<W*0.28)continue;
+    // Ignorer uniquement les overlays critiques (pas les boutons d'action)
     let el=t.target;
-    if(el.closest('#joy,#bgren,#bab,#bheal,#bveh,#binv,#bloot,#bmap,#mm,#inv,#ds,#notif,#hint'))continue;
+    if(el.closest('#mm,#inv,#ds,#notif'))continue;
     aimTId=t.identifier;aimTX=t.clientX;aimTY=t.clientY;
     shooting=true;
     if(!aCtx)initAudio();
@@ -1374,6 +1377,19 @@ function drawBulletsFn(dt){
     }
     let sx=b.x-camX,sy=b.y-camY;
     if(sx<-10||sx>W+10||sy<-10||sy>H+10){bullets.splice(i,1);continue;}
+    // RPG : collision avec véhicule (avant tout autre check)
+    if(b.expl>0){
+      let _vHit=false;
+      for(let _v of vehicles){
+        if(!_v.available&&_v.hp<=0)continue; // véhicule détruit → ignore
+        if(b.owner===_v.driver)continue;     // pas son propre véhicule
+        if(Math.hypot(b.x-_v.wx,b.y-_v.wy)<55){
+          spawnExplosion(b.x,b.y,b.expl,b.dmg,b.owner,b.team);
+          _vHit=true;break;
+        }
+      }
+      if(_vHit){bullets.splice(i,1);continue;}
+    }
     // Check si balle ennemie touche MON drone
     if(b.owner!==myId&&b.team!==myTeam&&droneActive&&Math.hypot(b.x-droneX,b.y-droneY)<30){
       droneActive=false;chan&&chan.publish('drone',{id:myId,active:false});
@@ -1437,26 +1453,41 @@ function drawExplsFn(dt){
   }
 }
 
+let _mmTerrain=null;
 function drawMinimap(){
   let mc=document.getElementById('mm'),mctx=mc.getContext('2d');
-  let mw=mc.width,mh=mc.height,sx=WW/mw,sy=WH/mh;
-  mctx.fillStyle='#0A120A';mctx.fillRect(0,0,mw,mh);
-  for(let ty=0;ty<MH;ty+=2)for(let tx=0;tx<MW;tx+=2){
-    let t=map[ty*MW+tx];
-    let c2=t===TL.GRASS?'#1E3010':t===TL.ROAD||t===TL.ASPHALT||t===TL.CONCRETE?'#443830':
-      t===TL.WATER?'#1A3050':t===TL.TRENCH?'#1A1208':t===TL.HEDGE?'#142808':'#1E3010';
-    mctx.fillStyle=c2;mctx.fillRect(tx*2/sx,ty*2/sy,2,2);
+  let mw=mc.width,mh=mc.height;
+  if(!_mmTerrain){
+    _mmTerrain=mctx.createImageData(mw,mh);
+    let d=_mmTerrain.data;
+    for(let my=0;my<mh;my++)for(let mx=0;mx<mw;mx++){
+      let tx=~~(mx/mw*MW),ty=~~(my/mh*MH),t=map[ty*MW+tx];
+      let r=30,g=48,b=16;
+      if(t===TL.ROAD||t===TL.ASPHALT){r=68;g=56;b=48;}
+      else if(t===TL.CONCRETE){r=80;g=72;b=64;}
+      else if(t===TL.WATER){r=26;g=48;b=80;}
+      else if(t===TL.TRENCH){r=26;g=18;b=8;}
+      else if(t===TL.HEDGE){r=20;g=40;b=8;}
+      else if(t===TL.WALL||t===TL.RUBBLE){r=74;g=68;b=60;}
+      let idx=(my*mw+mx)*4;d[idx]=r;d[idx+1]=g;d[idx+2]=b;d[idx+3]=255;
+    }
   }
+  mctx.putImageData(_mmTerrain,0,0);
   CAPS.forEach(cp=>{
-    mctx.fillStyle=cp.team==='UA'?'#4488FF':cp.team==='RU'?'#FF4444':'#888';
-    mctx.beginPath();mctx.arc(cp.wx/sx,cp.wy/sy,3,0,Math.PI*2);mctx.fill();
-    mctx.fillStyle='#FFD700';mctx.font='6px Arial';mctx.textAlign='center';mctx.fillText(cp.id,cp.wx/sx,cp.wy/sy-4);
+    let cx=cp.wx/WW*mw,cy=cp.wy/WH*mh;
+    mctx.fillStyle=cp.team==='UA'?'#4488FF':cp.team==='RU'?'#FF4444':'#FFD700';
+    mctx.beginPath();mctx.arc(cx,cy,3,0,Math.PI*2);mctx.fill();
+    mctx.fillStyle='rgba(255,255,255,0.9)';mctx.font='bold 7px Arial';
+    mctx.textAlign='center';mctx.fillText(cp.id,cx,cy-4);
   });
-  // Alliés uniquement (ennemis masqués)
-  Object.values(remotes).forEach(r=>{if(r.dead||r.team!==myTeam)return;mctx.fillStyle='#88DDFF';mctx.beginPath();mctx.arc(r.x/sx,r.y/sy,2,0,Math.PI*2);mctx.fill();});
-  // Joueur local — rond blanc uniquement (sans rectangle ni cercle externe)
-  let px2=(pInVehicle?pInVehicle.wx:px)/sx,py2=(pInVehicle?pInVehicle.wy:py)/sy;
-  mctx.fillStyle='#FFF';mctx.beginPath();mctx.arc(px2,py2,3,0,Math.PI*2);mctx.fill();
+  Object.values(remotes).forEach(r=>{
+    if(r.dead||r.team!==myTeam)return;
+    mctx.fillStyle='#88DDFF';mctx.beginPath();
+    mctx.arc(r.x/WW*mw,r.y/WH*mh,2,0,Math.PI*2);mctx.fill();
+  });
+  let _px=(pInVehicle?pInVehicle.wx:px)/WW*mw;
+  let _py=(pInVehicle?pInVehicle.wy:py)/WH*mh;
+  mctx.fillStyle='#FFF';mctx.beginPath();mctx.arc(_px,_py,3,0,Math.PI*2);mctx.fill();
 }
 
 function drawBigMap(){
@@ -1743,6 +1774,7 @@ window.addEventListener('beforeunload',()=>{if(chan)chan.publish('bye',{id:myId}
 
 // ── INIT ──────────────────────────────────────────────────────────
 selT('UA');selC('fusil');
+_mmTerrain=null;
 generateMap();
 initBuildings();
 spawnVehicles();
