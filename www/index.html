@@ -2211,9 +2211,6 @@ function loop(ts){
     checkLootTarget();
     // Corps persistants — pas de TTL, restent toute la partie
   }
-  // (respawn handled by clickRespawn button)
-    }
-  }
 
   vehicles.forEach(v=>{if(!v.available&&v.respawnT>0){v.respawnT-=dt;if(v.respawnT<=0){v.available=true;v.hp=VDEFS[v.type].hp;v.wx=v.spawnX;v.wy=v.spawnY;}}});
 
