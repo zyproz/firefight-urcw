@@ -843,33 +843,36 @@ function throwGren(){
 
 // ── ABILITIES ────────────────────────────────────────────────────
 function useAbility(){
-  if(pDead||pSpecial<=0)return;
-  let sp=CLS[myCls].sp;
+  if(pDead)return;
+  // Dynamic: use whatever special item is in the bag (not class-based)
+  let sp=getActiveSp();
+  if(!sp||(pBag[sp]||0)<=0)return;
   switch(sp){
     case 'ammo':
       pMags=Math.min(CLS[myCls].mags+2,pMags+2);pAmmo=CLS[myCls].ammo;
       isReloading=false;document.getElementById('rlbar').style.display='none';
-      pSpecial--;showNotif('📦 Pack Munitions — rechargé!');break;
+      pBag.ammo--;showNotif('📦 Pack Munitions — rechargé!');break;
     case 'rpg':
       if(pWeapon!=='RPG7'){
-        pWeapon='RPG7';pAmmo=pBag.rpg||2;pMags=0;
-        showNotif('🚀 RPG-7 — '+pAmmo+' roquette(s). APPUYER sur l\'écran pour tirer !');
+        pWeapon='RPG7';pAmmo=pBag.rpg;pMags=0;
+        showNotif('🚀 RPG-7 — '+pAmmo+' roquette(s). APPUYER pour tirer !');
       }else{
-        pWeapon=CLS[myCls].wpn;pAmmo=pBag[pWeapon+'_a']||0;pMags=pBag[pWeapon+'_m']||0;
+        pWeapon=CLS[myCls].wpn;
+        pAmmo=pBag[pWeapon+'_a']||0;pMags=pBag[pWeapon+'_m']||0;
         showHint('↩ Retour '+CLS[myCls].wpn);
       }
-      return;
+      updateAbBtn();updateHUD();return;
     case 'range':
-      rangeActive=true;rangeT=10;pSpecial--;showNotif('🔭 Télémètre — 10s');break;
+      rangeActive=true;rangeT=10;pBag.range--;
+      showNotif('🔭 Télémètre actif — 10s');break;
     case 'drone':
       if(!droneActive){
         droneActive=true;
-        // Spawn 10 tuiles (80px) devant le joueur pour éviter l'explosion immédiate
         let _dDist=10*T;
         droneX=px+Math.cos(pdir)*_dDist;droneY=py+Math.sin(pdir)*_dDist;droneDir=pdir;
         document.getElementById('bab').innerHTML='💥<span style="font-size:9px">FPV</span>';
         showNotif('🚁 Drone FPV actif — joystick + FIRER pour impacter');
-        pSpecial--;
+        pBag.drone--;
       }else{fireDrone();}
       break;
   }
@@ -922,10 +925,35 @@ function useHeal(){
   }
 }
 
+// ── Item metadata for dynamic HUD
+const SP_META={
+  drone: {icon:'🚁',name:'Drone FPV'},
+  rpg:   {icon:'🚀',name:'RPG-7'},
+  range: {icon:'🔭',name:'Télémètre'},
+  ammo:  {icon:'📦',name:'Pack Munitions'},
+  medkit:{icon:'💉',name:'Kit Médical'},
+};
+const SP_ORDER=['drone','rpg','range','ammo']; // priority (medkit has own button)
+
+// Returns the key of the first available special in pBag (priority order)
+function getActiveSp(){
+  for(let k of SP_ORDER){ if((pBag[k]||0)>0)return k; }
+  return null;
+}
+
 function updateAbBtn(){
-  let cd=CLS[myCls]||{};
-  document.getElementById('bab').innerHTML=`${cd.spI||'⬛'}<span style="font-size:9px">${pSpecial}</span>`;
-  document.getElementById('bab').style.opacity=pSpecial>0?'1':'0.4';
+  let sp=getActiveSp();
+  let el=document.getElementById('bab');if(!el)return;
+  if(sp){
+    let cnt=pBag[sp]||0;
+    el.innerHTML=`${SP_META[sp].icon}<span style="font-size:9px">${cnt}</span>`;
+    el.style.opacity=cnt>0?'1':'0.4';
+  }else{
+    el.innerHTML=`⬛<span style="font-size:9px">0</span>`;
+    el.style.opacity='0.4';
+  }
+  // Keep pSpecial in sync (for any legacy code)
+  pSpecial=(pBag[getActiveSp()]||0);
 }
 
 // ── COLLISION ─────────────────────────────────────────────────────
@@ -996,7 +1024,18 @@ function spawnExplosion(wx,wy,r,dmg,owner,team){
 // ── DAMAGE ────────────────────────────────────────────────────────
 function takeDamage(amt,from){
   if(pDead)return;
-  php-=amt;dmgFlash=.5;if(php<=0){php=0;die(from);}updateHUD();
+  php-=amt;dmgFlash=.5;
+  // ── Directional blood splatters (away from shooter)
+  let _bdir=from?Math.atan2(py-from.y,px-from.x):pdir+Math.PI;
+  for(let _i=0;_i<5;_i++){
+    let _a=_bdir+(Math.random()-.5)*1.8;
+    let _spd=35+Math.random()*55;
+    particles.push({x:px,y:py,
+      vx:Math.cos(_a)*_spd,vy:Math.sin(_a)*_spd,
+      r:1.5+Math.random()*2.5,life:0.45,maxLife:0.45,
+      col:'#CC1111',col2:'#881111'});
+  }
+  if(php<=0){php=0;die(from);}updateHUD();
 }
 
 function die(killer){
@@ -1020,9 +1059,10 @@ function die(killer){
   chan&&chan.publish('tix',{...tickets});
   if(tickets.UA<=0||tickets.RU<=0)checkWin();
 
-  // 4. Show death screen
+  // 4. Show death screen + block canvas input
   let _ds=document.getElementById('ds');
   if(_ds)_ds.style.display='flex';
+  let _gcEl=document.getElementById('gc');if(_gcEl)_gcEl.style.pointerEvents='none';
 
   // 5. Legacy died event (for remote dead rendering)
   chan&&chan.publish('died',{id:myId,x:px,y:py,team:myTeam,cls:myCls,
@@ -1054,6 +1094,8 @@ function clickRespawn(){
   // Broadcast new position immediately
   chan&&chan.publish('pos',{id:myId,name:myName,x:px,y:py,dir:pdir,
     team:myTeam,cls:myCls,hp:php,dead:false,inVeh:null,moving:false,wfr:0,sfr:0});
+  // Request full game state (for late joiners / reconnects)
+  setTimeout(()=>chan&&chan.publish('reqState',{id:myId}),850);
   updateHUD();updateAbBtn();
 }
 
@@ -1074,6 +1116,10 @@ function doRespawn(){
   else{px=WW-180+~~(Math.random()*60);py=WH/2+_sOff;}
   pdir=myTeam==='RU'?0:Math.PI;
   document.getElementById('ds').style.display='none';
+  // ── Restore canvas + hard ctx reset
+  let _gcR=document.getElementById('gc');if(_gcR)_gcR.style.pointerEvents='auto';
+  if(ctx){ctx.globalAlpha=1;ctx.globalCompositeOperation='source-over';
+    ctx.shadowBlur=0;ctx.shadowColor='transparent';ctx.setTransform(1,0,0,1,0,0);}
   _respawnReady=false; // reset for next death
   // Reset respawn button for next death
   let _btn=document.getElementById('respawnBtn');
@@ -1085,14 +1131,24 @@ function doRespawn(){
   // Tell all players this player has a new position (corpse stays in _corpses)
   chan&&chan.publish('pos',{id:myId,name:myName,x:px,y:py,dir:pdir,
     team:myTeam,cls:myCls,hp:php,dead:false,inVeh:null,moving:false,wfr:0,sfr:0});
+  // Request full game state (for late joiners / reconnects)
+  setTimeout(()=>chan&&chan.publish('reqState',{id:myId}),850);
   updateHUD();updateAbBtn();
 }
 
 function checkWin(){
-  _corpses=[];deadBodies=[];remoteBodies=[]; // Clear corpses on game restart
   let w=tickets.UA<=0?'RU':'UA';
-  showNotif((w==='UA'?'🇺🇦 UKRAINE':'🇷🇺 RUSSIE')+' VICTOIRE! Reset 10s...');
-  setTimeout(()=>{tickets={UA:WIN_TIX,RU:WIN_TIX};CAPS.forEach(c=>{c.team=null;c.capProg=0;});updateHUD();},10000);
+  showNotif((w==='UA'?'🇺🇦 UKRAINE':'🇷🇺 RUSSIE')+' VICTOIRE! Reset dans 10s...');
+  setTimeout(()=>{
+    // Full reset: clear ALL persistent state
+    _allCorpses=[];deadBodies=[];remoteBodies=[];
+    tickets={UA:WIN_TIX,RU:WIN_TIX};
+    CAPS.forEach(c=>{c.team=null;c.capProg=0;});
+    // Broadcast reset to all players
+    chan&&chan.publish('gameReset',{ts:Date.now()});
+    chan&&chan.publish('tix',{...tickets});
+    updateHUD();showNotif('🔄 Nouvelle manche!');
+  },10000);
 }
 
 // ── CAPTURE (FIXED) ───────────────────────────────────────────────
@@ -1225,7 +1281,8 @@ function valInv(){
     Object.entries(lootBody.inventory).forEach(([k,v])=>{if(v>0)(pBag[k]=(pBag[k]||0)+v);});
     lootBody.inventory={};showNotif('✅ Loot récupéré!');
   }
-  updateHUD();closeInv();
+  updateHUD();updateAbBtn(); // HUD reflects new inventory immediately
+  closeInv();
 }
 
 // ── NETWORK ───────────────────────────────────────────────────────
@@ -1303,6 +1360,35 @@ function netConnect(){
           name:d.name||'?',angle:d.angle||0,blood:d.blood||28,df:d.df||0});
     });
     chan.subscribe('tix',m=>{let d=m.data;if(d)tickets=d;updateHUD();});
+
+    // ── STATE SYNC: late-joining player requests full state ──────────────
+    chan.subscribe('reqState',m=>{
+      if(!gameOn)return;
+      let req=m.data||{};if(req.id===myId)return;
+      // Respond: broadcast all corpses
+      _allCorpses.forEach(c=>setTimeout(()=>chan&&chan.publish('corpse2',c),80));
+      // Broadcast caps + tickets
+      chan.publish('capsSync',CAPS.map(c=>({id:c.id,team:c.team,prog:c.capProg||0})));
+      chan.publish('tix',{...tickets});
+    });
+
+    // ── CAPS SYNC: update all objective states ───────────────────────────
+    chan.subscribe('capsSync',m=>{
+      let d=m.data;if(!Array.isArray(d))return;
+      d.forEach(s=>{
+        let cap=CAPS.find(c=>c.id===s.id);
+        if(cap){cap.team=s.team;cap.capProg=s.prog||0;}
+      });
+      updateHUD();
+    });
+
+    // ── GAME RESET: clean slate on ticket-based reset ────────────────────
+    chan.subscribe('gameReset',m=>{
+      _allCorpses=[];deadBodies=[];remoteBodies=[];
+      CAPS.forEach(c=>{c.team=null;c.capProg=0;});
+      tickets={UA:WIN_TIX,RU:WIN_TIX};
+      updateHUD();showNotif('🔄 Nouvelle manche!');
+    });
         // Handle remote player respawn — fresh entity, corpse stays in _corpses[]
     chan.subscribe('spawn',m=>{
       let d=m.data;if(!d||d.id===myId)return;
@@ -2002,9 +2088,23 @@ function drawDeadBodies(){
     try{
       let sx=c.x-camX,sy=c.y-camY;
       if(Math.abs(sx)>W+100||Math.abs(sy)>H+100)return;
-      ctx.save();ctx.globalAlpha=0.55;ctx.fillStyle='#400';
-      ctx.beginPath();ctx.ellipse(sx,sy+8,c.blood||28,(c.blood||28)*.3,0,0,Math.PI*2);
-      ctx.fill();ctx.restore();
+      // ── Progressive blood pool (grows from 0 to c.blood over time)
+      if(c.bloodPool===undefined)c.bloodPool=0;
+      if(c.bloodPool<(c.blood||28))c.bloodPool=Math.min(c.blood||28,c.bloodPool+0.4);
+      let bp=c.bloodPool;
+      // Draw as scattered arcs around the body (no ellipse)
+      ctx.save();ctx.fillStyle='#500';
+      let seed=c.cid.charCodeAt(0)||0;
+      for(let i=0;i<7;i++){
+        let a=(i/7)*Math.PI*2+(seed%6)*0.5;
+        let r=bp*0.25+(i%3)*2.5;
+        let sz=1.5+(i%3);
+        ctx.globalAlpha=0.35+0.15*(i%2);
+        ctx.beginPath();
+        ctx.arc(sx+Math.cos(a)*r*0.8,sy+6+Math.sin(a)*r*0.45,sz,0,Math.PI*2);
+        ctx.fill();
+      }
+      ctx.restore();
       drawSoldierSprite(sx,sy,c.angle||0,c.team,c.cls||'fusil',
         c.team===myTeam,c.name||'',0,false,false,false,true,false,0,0,0);
     }catch(e){}
@@ -2216,7 +2316,10 @@ function loop(ts){
   vehicles.forEach(v=>{if(!v.available&&v.respawnT>0){v.respawnT-=dt;if(v.respawnT<=0){v.available=true;v.hp=VDEFS[v.type].hp;v.wx=v.spawnX;v.wy=v.spawnY;}}});
 
   // ── DRAW ──
-  ctx.globalAlpha=1;ctx.setTransform(1,0,0,1,0,0); // Reset state each frame
+  // ── Full canvas state reset (prevents shadow/alpha leaks across frames)
+  ctx.globalAlpha=1;ctx.globalCompositeOperation='source-over';
+  ctx.shadowBlur=0;ctx.shadowColor='transparent';
+  ctx.setTransform(1,0,0,1,0,0);
   ctx.fillStyle='#1A2218';ctx.fillRect(0,0,W,H);
   drawTerrain();
   drawCaps();
