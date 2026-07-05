@@ -591,7 +591,7 @@ const RELOAD_DUR=2.2;
 // Score
 let tickets={UA:WIN_TIX,RU:WIN_TIX};
 // Others
-let remotes={},bullets=[],grenades=[],explosions=[],deadBodies=[],remoteBodies=[],vehicles=[];
+let remotes={},bullets=[],grenades=[],explosions=[],deadBodies=[],remoteBodies=[],vehicles=[],particles=[];
 let _allCorpses=[]; // permanent corpse store
 let lootTarget=null,gameOn=false;
 let rangeActive=false,rangeT=0;
@@ -708,7 +708,7 @@ function doSpawn(){
     let el=document.getElementById(id);if(el)el.style.display='flex';});
   document.getElementById('bheal').style.display='flex'; // seringue pour tous
   updateAbBtn();gameOn=true;updateHUD();netConnect();
-  let _mb=document.getElementById('micBtn');if(_mb)_mb.style.display='block';
+  let _mbEl=document.getElementById('micBtn');if(_mbEl)_mbEl.style.display='block';
 }
 
 // ── SINGLE JOYSTICK ───────────────────────────────────────────────
@@ -845,36 +845,26 @@ function throwGren(){
 // ── ABILITIES ────────────────────────────────────────────────────
 function useAbility(){
   if(pDead)return;
-  let sp=getActiveSp();
-  if(!sp||(pBag[sp]||0)<=0)return;
+  let sp=getActiveSp();if(!sp||(pBag[sp]||0)<=0)return;
   switch(sp){
     case 'ammo':
       pMags=Math.min(CLS[myCls].mags+2,pMags+2);pAmmo=CLS[myCls].ammo;
       isReloading=false;document.getElementById('rlbar').style.display='none';
       pBag.ammo--;showNotif('📦 Pack Munitions — rechargé!');break;
     case 'rpg':
-      if(pWeapon!=='RPG7'){
-        pWeapon='RPG7';pAmmo=pBag.rpg;pMags=0;
+      if(pWeapon!=='RPG7'){pWeapon='RPG7';pAmmo=pBag.rpg;pMags=0;
         showNotif('🚀 RPG-7 — '+pAmmo+' roquette(s). APPUYER pour tirer !');
-      }else{
-        pWeapon=CLS[myCls].wpn;
-        pAmmo=pBag[pWeapon+'_a']||0;pMags=pBag[pWeapon+'_m']||0;
-        showHint('↩ Retour '+CLS[myCls].wpn);
-      }
+      }else{pWeapon=CLS[myCls].wpn;pAmmo=pBag[pWeapon+'_a']||0;pMags=pBag[pWeapon+'_m']||0;
+        showHint('↩ Retour '+CLS[myCls].wpn);}
       updateAbBtn();updateHUD();return;
     case 'range':
-      rangeActive=true;rangeT=10;pBag.range--;
-      showNotif('🔭 Télémètre actif — 10s');break;
+      rangeActive=true;rangeT=10;pBag.range--;showNotif('🔭 Télémètre actif — 10s');break;
     case 'drone':
-      if(!droneActive){
-        droneActive=true;
-        let _dDist=10*T;
+      if(!droneActive){droneActive=true;let _dDist=10*T;
         droneX=px+Math.cos(pdir)*_dDist;droneY=py+Math.sin(pdir)*_dDist;droneDir=pdir;
         document.getElementById('bab').innerHTML='💥<span style="font-size:9px">FPV</span>';
-        showNotif('🚁 Drone FPV actif — joystick + FIRER pour impacter');
-        pBag.drone--;
-      }else{fireDrone();}
-      break;
+        showNotif('🚁 Drone FPV actif — joystick + FIRER pour impacter');pBag.drone--;
+      }else{fireDrone();}break;
   }
   updateAbBtn();updateHUD();
 }
@@ -925,28 +915,15 @@ function useHeal(){
   }
 }
 
-// Système de loot dynamique : le HUD reflète le contenu réel de pBag
-const SP_META={
-  drone:{icon:'🚁'},rpg:{icon:'🚀'},range:{icon:'🔭'},ammo:{icon:'📦'}
-};
+const SP_META={drone:{icon:'🚁'},rpg:{icon:'🚀'},range:{icon:'🔭'},ammo:{icon:'📦'}};
 const SP_ORDER=['drone','rpg','range','ammo'];
-
-function getActiveSp(){
-  for(let k of SP_ORDER){if((pBag[k]||0)>0)return k;}
-  return null;
-}
-
+function getActiveSp(){for(let k of SP_ORDER){if((pBag[k]||0)>0)return k;}return null;}
 function updateAbBtn(){
-  let sp=getActiveSp();
-  let el=document.getElementById('bab');if(!el)return;
-  if(sp){
-    let cnt=pBag[sp]||0;
+  let sp=getActiveSp(),el=document.getElementById('bab');if(!el)return;
+  if(sp){let cnt=pBag[sp]||0;
     el.innerHTML=`${SP_META[sp].icon}<span style="font-size:9px">${cnt}</span>`;
     el.style.opacity=cnt>0?'1':'0.4';
-  }else{
-    el.innerHTML=`⬛<span style="font-size:9px">0</span>`;
-    el.style.opacity='0.4';
-  }
+  }else{el.innerHTML=`⬛<span style="font-size:9px">0</span>`;el.style.opacity='0.4';}
   pSpecial=(pBag[getActiveSp()]||0);
 }
 
@@ -1771,16 +1748,11 @@ function drawBulletsFn(dt){
         if(hit||r.dead||r.team===myTeam)return;
         if(Math.hypot(b.x-r.x,b.y-r.y)<8){
           chan&&chan.publish('hit',{target:rid,from:myId,dmg:b.dmg});hit=true;
-          // Éclaboussures de sang à l'impact (dessinées sur l'écran du tireur)
-          let _ibd=Math.atan2(b.dy,b.dx);
-          for(let _ibi=0;_ibi<4;_ibi++){
-            let _iba=_ibd+Math.PI+(Math.random()-.5)*2.0;
-            let _ibs=28+Math.random()*48;
-            particles.push({x:b.x,y:b.y,
-              vx:Math.cos(_iba)*_ibs,vy:Math.sin(_iba)*_ibs,
-              r:1.5+Math.random()*2.0,life:0.4,maxLife:0.4,
-              col:'#CC0000',col2:'#880000'});
-          }
+          let _bd=Math.atan2(b.dy,b.dx);
+          for(let _bi=0;_bi<4;_bi++){let _ba=_bd+Math.PI+(Math.random()-.5)*2;
+            particles.push({x:b.x,y:b.y,vx:Math.cos(_ba)*(28+Math.random()*45),
+              vy:Math.sin(_ba)*(28+Math.random()*45),r:1.5+Math.random()*2,
+              life:0.4,maxLife:0.4,col:'#CC0000',col2:'#880000'});}
         }
       });
       if(hit){bullets.splice(i,1);continue;}
@@ -2047,26 +2019,22 @@ function drawDeadBodies(){
 
 
 // ══════════════════════════════════════════════════════════════════
-// ══════════════════════════════════════════════════════════════════
-// VOICE CHAT v2 — WebRTC, UI propre, pas de confirm()
+// VOICE CHAT — WebRTC with explicit mic permission
 // ══════════════════════════════════════════════════════════════════
 let _voiceStream=null,_voicePeers={},_voiceChan=null;
 let _speakerName=null,_speakerTimer=0,_voiceActive=false;
 let _myAudioLevel=0,_audioAnalyser=null;
 
-// Affiche l'overlay de demande de permission (pas de confirm())
 function requestMicPermission(){
   if(_voiceActive){showNotif('🎙️ Vocal déjà actif !');return;}
   let el=document.getElementById('vcPerm');
   if(el)el.style.display='flex';
 }
-// Bouton "Autoriser"
 function vcAccept(){
   let el=document.getElementById('vcPerm');if(el)el.style.display='none';
   let mb=document.getElementById('micBtn');if(mb)mb.style.display='none';
   initVoiceChat();
 }
-// Bouton "Refuser"
 function vcDeny(){
   let el=document.getElementById('vcPerm');if(el)el.style.display='none';
   showNotif('🎙️ Micro refusé');
@@ -2075,15 +2043,10 @@ function vcDeny(){
 async function initVoiceChat(){
   try{
     _voiceStream=await navigator.mediaDevices.getUserMedia({
-      audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true},
-      video:false
+      audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true},video:false
     });
     _voiceActive=true;
-    // Update mic button to show active
-    let mb=document.getElementById('micBtn');
-    if(mb){mb.innerHTML='🎙️ ON';mb.style.background='rgba(0,130,0,0.9)';
-      mb.style.display='block';mb.onclick=null;mb.style.cursor='default';}
-    // Audio analyser pour détecter quand on parle
+    // Audio level detection
     let _ac=new (window.AudioContext||window.webkitAudioContext)();
     let _src=_ac.createMediaStreamSource(_voiceStream);
     _audioAnalyser=_ac.createAnalyser();_audioAnalyser.fftSize=512;
@@ -2094,12 +2057,12 @@ async function initVoiceChat(){
       _audioAnalyser.getByteFrequencyData(_buf);
       let s=0;_buf.slice(0,30).forEach(v=>s+=v);
       _myAudioLevel=s/30;
-      if(_myAudioLevel>22&&_voiceChan)
+      if(_myAudioLevel>22&&_voiceChan&&chan)
         _voiceChan.publish('spk',{id:myId,name:myName,team:myTeam});
       setTimeout(_poll,150);
     }
     _poll();
-    // Canal de signalisation Ably (utilise ablyClient, pas realtime)
+    // Ably signaling
     _voiceChan=ablyClient.channels.get('ff_vc_'+myTeam+'_'+AKEY.slice(0,6));
     _voiceChan.subscribe('join',async m=>{
       let d=m.data;if(!d||d.id===myId||d.team!==myTeam)return;
@@ -2114,26 +2077,21 @@ async function initVoiceChat(){
     });
     _voiceChan.subscribe('answer',async m=>{
       let d=m.data;if(!d||d.to!==myId)return;
-      let pc=_voicePeers[d.from];
-      if(pc)await pc.setRemoteDescription(new RTCSessionDescription(d.sdp));
+      let pc=_voicePeers[d.from];if(pc)await pc.setRemoteDescription(new RTCSessionDescription(d.sdp));
     });
     _voiceChan.subscribe('ice',async m=>{
       let d=m.data;if(!d||d.to!==myId)return;
-      let pc=_voicePeers[d.from];
-      if(pc&&d.candidate)await pc.addIceCandidate(new RTCIceCandidate(d.candidate));
+      let pc=_voicePeers[d.from];if(pc&&d.candidate)await pc.addIceCandidate(new RTCIceCandidate(d.candidate));
     });
     _voiceChan.subscribe('spk',m=>{
       let d=m.data;if(!d||d.id===myId||d.team!==myTeam)return;
       _speakerName=d.name;_speakerTimer=2.5;
     });
     setTimeout(()=>_voiceChan&&_voiceChan.publish('join',{id:myId,name:myName,team:myTeam}),600);
-    showNotif('🎙️ Chat vocal '+myTeam+' actif !');
+    showNotif('🎙️ Vocal '+myTeam+' actif');
   }catch(e){
-    _voiceActive=false;
-    showNotif('🎙️ Erreur micro: '+e.message.slice(0,35));
-    let mb=document.getElementById('micBtn');
-    if(mb){mb.innerHTML='🎙️ Activer vocal';mb.style.background='rgba(0,80,0,0.85)';}
-    console.warn('[VoiceChat]',e);
+    showNotif('🎙️ Micro refusé: '+e.message);
+    console.warn('[Voice]',e);
   }
 }
 
@@ -2161,59 +2119,45 @@ async function _vcOffer(peerId){
   _voiceChan&&_voiceChan.publish('offer',{from:myId,to:peerId,sdp:offer,team:myTeam});
 }
 
-// HUD vocal — affiché dans le game loop
 function drawVoiceHUD(){
-  ctx.shadowBlur=0; // reset shadow avant de dessiner l'UI vocal
-  // Indicateur "qui parle" (haut centre)
+  // Speaking indicator (top center)
   if(_speakerTimer>0){
     _speakerTimer-=1/60;
-    let a=Math.min(1,_speakerTimer*3);
+    let a=Math.min(1,_speakerTimer*2);
     ctx.save();
+    ctx.fillStyle=`rgba(0,0,0,${a*0.7})`;
+    let tw=ctx.measureText('🎙 '+(_speakerName||'')).width+20;
+    ctx.fillRect(W/2-tw/2-5,10,tw+10,24);
+    ctx.fillStyle=`rgba(80,255,120,${a})`;
     ctx.font='bold 12px Courier New';ctx.textAlign='center';
-    let label='🎙 '+(_speakerName||'?');
-    let tw=ctx.measureText(label).width+24;
-    ctx.fillStyle=`rgba(0,0,0,${a*0.82})`;
-    ctx.fillRect(W/2-tw/2,6,tw,24);
-    ctx.strokeStyle=`rgba(60,255,80,${a*0.7})`;ctx.lineWidth=1;
-    ctx.strokeRect(W/2-tw/2,6,tw,24);
-    ctx.fillStyle=`rgba(120,255,120,${a})`;
-    ctx.fillText(label,W/2,23);
-    ctx.restore();
+    ctx.fillText('🎙 '+(_speakerName||'?'),W/2,27);ctx.restore();
   }
-  // Point vert quand micro actif (bas gauche)
-  if(_voiceActive){
-    ctx.save();
-    let spk=_myAudioLevel>22;
-    ctx.fillStyle=spk?'rgba(20,210,20,0.95)':'rgba(20,110,20,0.75)';
-    let r=spk?11:8;
-    ctx.beginPath();ctx.arc(18,H-18,r,0,Math.PI*2);ctx.fill();
-    ctx.strokeStyle='rgba(255,255,255,0.45)';ctx.lineWidth=1;
-    ctx.beginPath();ctx.arc(18,H-18,r,0,Math.PI*2);ctx.stroke();
+  // Own mic level indicator
+  if(_voiceActive&&_myAudioLevel>22){
+    ctx.save();ctx.fillStyle='rgba(60,220,60,0.9)';
+    ctx.beginPath();ctx.arc(W-28,H-28,9,0,Math.PI*2);ctx.fill();
     ctx.fillStyle='#fff';ctx.font='10px serif';ctx.textAlign='center';
-    ctx.fillText('🎙',18,H-14);
-    ctx.restore();
+    ctx.fillText('🎙',W-28,H-24);ctx.restore();
   }
 }
 
-// ── PARTICLES — muzzle flash, débris, sang ────────────────────────
+// ── PARTICLES ────────────────────────────────────────────────────
 function drawParticles(dt){
   for(let _pi=particles.length-1;_pi>=0;_pi--){
     let p=particles[_pi];
-    p.x+=p.vx*dt;p.y+=p.vy*dt;
-    p.vx*=0.82;p.vy*=0.82;
-    p.life-=dt;
+    p.x+=p.vx*dt;p.y+=p.vy*dt;p.vx*=0.82;p.vy*=0.82;p.life-=dt;
     if(p.life<=0){particles.splice(_pi,1);continue;}
     let sx=p.x-camX,sy=p.y-camY;
     if(sx<-20||sx>W+20||sy<-20||sy>H+20)continue;
     let al=p.life/p.maxLife;
     ctx.save();
     ctx.globalAlpha=al*0.85;
-    ctx.shadowBlur=0;
-    ctx.fillStyle=al>0.5?(p.col||'#FFF'):(p.col2||p.col||'#FFF');
-    ctx.beginPath();ctx.arc(sx,sy,Math.max(0.5,p.r*al),0,Math.PI*2);ctx.fill();
+    ctx.fillStyle=al>0.5?(p.col||'#FFD'):(p.col2||p.col||'#FFD');
+    ctx.beginPath();ctx.arc(sx,sy,Math.max(0.5,p.r),0,Math.PI*2);ctx.fill();
     ctx.restore();
   }
 }
+
 function loop(ts){
   requestAnimationFrame(loop);
   let dt=Math.min((ts-lastT)/1000,.05);lastT=ts;
@@ -2372,33 +2316,29 @@ window.addEventListener('visibilitychange',()=>{
 </script>
 <script src="https://cdn.ably.io/lib/ably.min-1.js"></script>
 
-<!-- Bouton vocal (visible en jeu) -->
 <button id="micBtn" onclick="requestMicPermission()"
   style="display:none;position:fixed;bottom:88px;left:10px;z-index:200;
   background:rgba(0,70,0,0.88);color:#afffaf;border:1px solid #3f3;
   border-radius:8px;padding:8px 14px;font-size:12px;font-family:'Courier New',monospace;
   cursor:pointer;letter-spacing:1px">🎙️ Activer vocal</button>
 
-<!-- Overlay permission microphone -->
 <div id="vcPerm" style="display:none;position:fixed;inset:0;z-index:900;
   background:rgba(0,0,0,0.88);align-items:center;justify-content:center">
   <div style="background:#0A1A0A;border:2px solid #44FF44;border-radius:14px;
-    padding:30px 24px;max-width:290px;width:88%;text-align:center;
-    font-family:'Courier New',monospace;color:#C8FF90;
-    box-shadow:0 0 50px rgba(0,180,0,0.2)">
-    <div style="font-size:40px;margin-bottom:12px">🎙️</div>
-    <div style="font-size:14px;font-weight:bold;letter-spacing:3px;margin-bottom:10px;
-      color:#88FF88">CHAT VOCAL</div>
-    <div style="font-size:11px;color:#77AA77;margin-bottom:24px;line-height:1.7">
-      Autoriser l'accès au microphone pour communiquer avec votre équipe en temps réel</div>
-    <button onclick="vcAccept()" style="display:block;width:100%;margin-bottom:12px;
-      padding:12px 0;background:#163016;color:#88FF88;border:1px solid #44FF44;
-      border-radius:8px;font-size:13px;font-family:'Courier New',monospace;
-      cursor:pointer;letter-spacing:1px">✅ AUTORISER LE MICRO</button>
-    <button onclick="vcDeny()" style="display:block;width:100%;padding:10px 0;
+    padding:28px 24px;max-width:290px;width:88%;text-align:center;
+    font-family:'Courier New',monospace;color:#C8FF90">
+    <div style="font-size:38px;margin-bottom:12px">🎙️</div>
+    <div style="font-size:14px;font-weight:bold;letter-spacing:3px;margin-bottom:8px;color:#88FF88">CHAT VOCAL</div>
+    <div style="font-size:11px;color:#77AA77;margin-bottom:22px;line-height:1.7">
+      Autoriser le micro pour parler avec votre équipe</div>
+    <button onclick="vcAccept()" style="display:block;width:100%;margin-bottom:10px;
+      padding:12px;background:#163016;color:#88FF88;border:1px solid #44FF44;
+      border-radius:8px;font-size:13px;font-family:'Courier New',monospace;cursor:pointer">
+      ✅ AUTORISER LE MICRO</button>
+    <button onclick="vcDeny()" style="display:block;width:100%;padding:10px;
       background:#221218;color:#FF8888;border:1px solid #884444;
-      border-radius:8px;font-size:12px;font-family:'Courier New',monospace;
-      cursor:pointer">❌ Refuser</button>
+      border-radius:8px;font-size:12px;font-family:'Courier New',monospace;cursor:pointer">
+      ❌ Refuser</button>
   </div>
 </div>
 
