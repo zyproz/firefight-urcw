@@ -60,27 +60,21 @@ body{background:#0A0D08;overflow:hidden;font-family:'Courier New',monospace;user
 #jk{position:absolute;width:48px;height:48px;background:rgba(255,255,255,.28);
   border:2px solid rgba(255,255,255,.55);border-radius:50%;top:41px;left:41px;
   transform:translate(-50%,-50%);pointer-events:none}
-.cbtn{position:fixed;border-radius:50%;cursor:pointer;z-index:61;touch-action:none;
-  display:none;align-items:center;justify-content:center;font-size:24px}
+.cbtn{position:fixed;border-radius:12px;cursor:pointer;z-index:61;touch-action:none;
+  display:none;align-items:center;justify-content:center;font-size:26px;
+  background:rgba(0,0,0,0.25);border:1px solid rgba(255,255,255,0.2);
+  width:58px;height:58px;backdrop-filter:blur(2px)}
 #bfire{display:none!important}
-/* 2×2 grid coins bas-droite */
-#bveh{right:14px;bottom:14px;width:62px;height:62px;
-  background:rgba(0,100,60,.55);border:2px solid #00CC66;font-size:22px}
-#bheal{right:86px;bottom:14px;width:62px;height:62px;
-  background:rgba(0,160,60,.55);border:2px solid #44FF88;font-size:24px}
-#bgren{right:86px;bottom:86px;width:62px;height:62px;
-  background:rgba(180,100,0,.55);border:2px solid #FFAA00;font-size:22px}
-#bab{right:14px;bottom:86px;width:62px;height:62px;flex-direction:column;gap:1px;
-  background:rgba(100,0,200,.55);border:2px solid #AA44FF;font-size:20px}
+/* Barre linéaire en bas coins bas-droite */
+#bveh{right:auto;left:calc(50% + 64px);bottom:14px;}
+#bheal{right:auto;left:calc(50%);bottom:14px;}
+#bgren{right:auto;left:calc(50% - 128px);bottom:14px;}
+#bab{right:auto;left:calc(50% - 64px);bottom:14px;}
 #bmap{position:fixed;left:18px;bottom:16px;width:52px;height:52px;
   border-radius:8px;background:rgba(0,50,100,.7);border:1px solid rgba(0,120,255,.4);
   color:#fff;font-size:18px;cursor:pointer;z-index:61;touch-action:none;display:none;
   align-items:center;justify-content:center;pointer-events:auto}
-#binv{position:fixed;right:14px;bottom:162px;width:62px;height:18px;
-  border-radius:5px;background:rgba(80,60,0,.7);border:1px solid rgba(255,200,0,.4);
-  color:#FFD700;font-size:9px;cursor:pointer;z-index:61;touch-action:none;display:none;
-  align-items:center;justify-content:center;gap:3px;
-  font-family:'Courier New',monospace;pointer-events:auto}
+#binv{position:fixed;right:auto;left:calc(50% + 128px);bottom:14px;width:58px;height:58px;border-radius:12px;background:rgba(0,0,0,0.25);border:1px solid rgba(255,255,255,0.2);}
 #rlbar{position:fixed;bottom:152px;left:50%;transform:translateX(-50%);display:none;z-index:55}
 #rlo{width:120px;height:8px;background:rgba(0,0,0,.7);border:1px solid rgba(255,255,255,.3);
   border-radius:4px;overflow:hidden}
@@ -188,7 +182,15 @@ body{background:#0A0D08;overflow:hidden;font-family:'Courier New',monospace;user
   <div class="logo" style="color:#fff;text-shadow:0 0 20px #FF6600,0 0 40px #FF3300;">WarEast.io</div>
   <div class="ver" style="color:#FF8800;letter-spacing:4px">TACTICAL 2D WARFARE</div>
   <div class="sub">UKRAINE • TACTICAL 2D WARFARE • ONLINE</div>
-  <div class="pi"><input id="pseudo" maxlength="12" placeholder="Pseudo" value="Soldat"></div>
+  <div style="width:100%;max-width:380px;margin:0 auto 16px;text-align:center">
+    <div style="font-size:11px;color:rgba(255,255,255,0.5);letter-spacing:3px;margin-bottom:8px">USERNAME</div>
+    <input id="pseudo" maxlength="12" placeholder="TON PSEUDO"
+      style="width:100%;box-sizing:border-box;background:rgba(255,255,255,0.1);
+      border:2px solid rgba(255,255,255,0.3);border-radius:10px;
+      color:#fff;font-size:22px;font-family:'Courier New',monospace;
+      font-weight:bold;letter-spacing:3px;text-align:center;padding:14px 10px;
+      outline:none" value="Soldat">
+  </div>
   <div class="sec">CHOISIR UN CAMP</div>
   <div class="row">
     <button class="tb tua" id="bua" onclick="selT('UA')"><span style="font-size:22px">🇺🇦</span><span>UKRAINE</span><span style="font-size:8px;color:#FFD700">SCOTCH JAUNE</span></button>
@@ -213,9 +215,8 @@ body{background:#0A0D08;overflow:hidden;font-family:'Courier New',monospace;user
     <div class="hb" id="hcls">⬛</div>
     <div id="hspk" style="font-family:'Courier New',monospace;font-size:10px;color:#88FF88;letter-spacing:1px;min-height:14px;padding:1px 0"></div>
   </div>
-  <div id="sb">🇺🇦 <span id="tua">50</span> — <span id="tru">50</span> 🇷🇺</div>
   <canvas id="mm" width="140" height="140"></canvas>
-  <div id="obj" style="color:#FFD700;font-size:11px;font-family:'Courier New',monospace;text-align:center;padding:3px 0;letter-spacing:1px">🚩 0/3</div>
+  <div id="sb" style="color:#fff;font-size:11px;font-family:'Courier New',monospace;text-align:center;padding:3px 0;letter-spacing:1px">🇺🇦 <span id="tua">50</span> — <span id="tru">50</span> 🇷🇺</div>
 </div>
 
 <div id="joy"><div id="jk"></div></div>
@@ -225,7 +226,7 @@ body{background:#0A0D08;overflow:hidden;font-family:'Courier New',monospace;user
 <div class="cbtn" id="bheal">💉</div>
 <div class="cbtn" id="bveh">🚗</div>
 <div id="bmap" style="display:none">🗺</div>
-<div id="binv" style="display:none">🎒<span style="font-size:8px">SAC</span></div>
+<div id="binv">🎒</div>
 <div id="rlbar"><div id="rlo"><div id="rli"></div></div></div>
 <div id="bloot">👁 FOUILLER [F]</div>
 
@@ -594,6 +595,8 @@ const RELOAD_DUR=2.2;
 let tickets={UA:WIN_TIX,RU:WIN_TIX};
 // Others
 let remotes={},bullets=[],grenades=[],explosions=[],deadBodies=[],remoteBodies=[],vehicles=[],particles=[];
+let bloodTrail=[]; // Traînée de sang
+let pWounded=false,pBleedT=0,pTrailT=0; // Saignement
 let _allCorpses=[]; // permanent corpse store
 let lootTarget=null,gameOn=false;
 let rangeActive=false,rangeT=0;
@@ -800,8 +803,8 @@ document.addEventListener('touchstart',e=>{
 document.getElementById('bloot').addEventListener('click',()=>{if(lootTarget)openInv(true,lootTarget);});
 
 function fireBullet(){
-  // Passager (pas conducteur) → pas de tir
-  if(pInVehicle&&pInVehicle.driver!==myId)return;
+  // Aucun tir en véhicule (pickup — pas d'armement)
+  if(pInVehicle)return;
   // Drone ne tire PAS avec fireBullet — uniquement via ennemi ou bouton
   let now=Date.now();
   let wk=pInVehicle?(VDEFS[pInVehicle.type].wpn||'MGVEH'):pWeapon;
@@ -907,6 +910,7 @@ function useHeal(){
     });
     if(!healed&&php<pMaxHp&&pMedkit>0){
       let heal=Math.min(50,pMaxHp-php);php+=heal;pMedkit--;
+      pWounded=false;pBleedT=0;bloodTrail=[];
       showNotif('💉 Soigné +'+heal+'PV!');updateHUD();
     }else if(!healed)showHint('Pas de cible à soigner');
   } else {
@@ -914,6 +918,7 @@ function useHeal(){
     if(pMedkit<=0){showHint('Plus de seringue !');return;}
     if(php>=pMaxHp){showHint('Déjà au maximum !');return;}
     let heal=Math.min(30,pMaxHp-php);php+=heal;pMedkit--;
+    pWounded=false;pBleedT=0;bloodTrail=[];
     showNotif('💊 Soigné +'+heal+' PV !');updateHUD();
     if(pMedkit<=0)document.getElementById('bheal').style.display='none';
   }
@@ -999,7 +1004,9 @@ function spawnExplosion(wx,wy,r,dmg,owner,team){
 // ── DAMAGE ────────────────────────────────────────────────────────
 function takeDamage(amt,from){
   if(pDead)return;
-  php-=amt;dmgFlash=.5;if(php<=0){php=0;die(from);}updateHUD();
+  php-=amt;dmgFlash=.5;
+  if(php>0){pWounded=true;pBleedT=5;} // Commence à saigner
+  if(php<=0){php=0;pWounded=false;die(from);}updateHUD();
 }
 
 function die(killer){
@@ -1007,6 +1014,7 @@ function die(killer){
   pDead=true;
   isDying=true;dyingFr=~~(Math.random()*6);dyingT=0;
   if(pInVehicle){pInVehicle.driver=null;pInVehicle=null;}
+  pWounded=false;pBleedT=0;bloodTrail=[];
   updateHUD();
 
   // 1. Store permanent corpse for local draw
@@ -1349,7 +1357,7 @@ function updateHUD(){
   document.getElementById('hpi').style.background=php>pMaxHp*.5?'#44CC44':php>pMaxHp*.25?'#FFAA00':'#FF2222';
   document.getElementById('hammo').textContent=pInVehicle?`🚗 ${VDEFS[pInVehicle.type].name}`:`🔫 ${pAmmo} | ${pMags} chg`;
   document.getElementById('hcls').textContent=`${myTeam==='UA'?'🇺🇦':'🇷🇺'} ${CLS[myCls]?.name||''}${pMedkit?' 💊':''}`;
-  let _objEl=document.getElementById('obj');if(_objEl)_objEl.textContent='🚩 '+CAPS.filter(c=>c.team===myTeam).length+'/3';
+  // obj supprimé — tickets affichés via sb
   document.getElementById('tua').textContent=tickets.UA;
   document.getElementById('tru').textContent=tickets.RU;
 }
@@ -1509,8 +1517,8 @@ function drawSoldierSprite(sx,sy,dir,team,cls,isAlly,name,hp,isMe,moving,isShoot
     if(dead){
       // Pas de fond noir — juste 💀 + pseudo (v24)
       ctx.save();ctx.shadowBlur=0;
-      ctx.fillStyle='#FFD700';ctx.font='bold 8px Courier New';ctx.textAlign='center';
-      ctx.fillText('💀 '+name,sx,sy+27);
+      ctx.fillStyle='#FFD700';ctx.font='14px serif';ctx.textAlign='center';
+      ctx.fillText('💀',sx,sy+20);
       ctx.restore();
     }
     return;
@@ -2156,6 +2164,17 @@ function drawVoiceHUD(){
   }
 }
 
+// ── TRAÎNÉE DE SANG ──────────────────────────────────────────────
+function drawBloodTrail(){
+  ctx.fillStyle='#770000';
+  bloodTrail.forEach(d=>{
+    let sx=d.x-camX,sy=d.y-camY;
+    if(Math.abs(sx)>W+20||Math.abs(sy)>H+20)return;
+    ctx.globalAlpha=0.6;
+    ctx.beginPath();ctx.arc(sx,sy,2,0,Math.PI*2);ctx.fill();
+  });
+  ctx.globalAlpha=1;
+}
 // ── PARTICLES ────────────────────────────────────────────────────
 function drawParticles(dt){
   for(let _pi=particles.length-1;_pi>=0;_pi--){
@@ -2184,6 +2203,20 @@ function loop(ts){
   camX+=(cx-camX)*10*dt;camY+=(cy-camY)*10*dt;
   camX=Math.max(0,Math.min(WW-W,camX));camY=Math.max(0,Math.min(WH-H,camY));
 
+  // ── Saignement (blessé non soigné)
+  if(!pDead&&pWounded){
+    pBleedT-=dt;
+    if(pBleedT<=0){pBleedT=5;php=Math.max(1,php-1);dmgFlash=.15;updateHUD();}
+    // Traînée de sang quand on se déplace
+    if(pMoving){
+      pTrailT-=dt;
+      if(pTrailT<=0){
+        pTrailT=0.35;
+        bloodTrail.push({x:px,y:py});
+        if(bloodTrail.length>100)bloodTrail.shift();
+      }
+    }
+  }
   if(!pDead){
     let mvX=jAX,mvY=jAY;
     if(keys['KeyW']||keys['ArrowUp'])mvY=-1;if(keys['KeyS']||keys['ArrowDown'])mvY=1;
@@ -2272,6 +2305,7 @@ function loop(ts){
   drawParticles(dt);
   drawExplsFn(dt);
   drawVehicles();
+  drawBloodTrail();
   drawDeadBodies();
   drawPlayers();
   drawDroneFPV(dt);
@@ -2332,10 +2366,10 @@ window.addEventListener('visibilitychange',()=>{
 <script src="https://cdn.ably.io/lib/ably.min-1.js"></script>
 
 <button id="micBtn" onclick="requestMicPermission()"
-  style="display:none;position:fixed;bottom:88px;left:10px;z-index:200;
-  background:rgba(0,70,0,0.88);color:#afffaf;border:1px solid #3f3;
-  border-radius:8px;padding:8px 14px;font-size:12px;font-family:'Courier New',monospace;
-  cursor:pointer;letter-spacing:1px">🎙️ Activer vocal</button>
+  style="display:none;position:fixed;top:6px;right:152px;z-index:200;
+  background:rgba(0,50,0,0.82);color:#afffaf;border:1px solid rgba(60,255,60,0.5);
+  border-radius:6px;padding:4px 10px;font-size:10px;font-family:'Courier New',monospace;
+  cursor:pointer;letter-spacing:1px">🎙️</button>
 
 <div id="vcPerm" style="display:none;position:fixed;inset:0;z-index:900;
   background:rgba(0,0,0,0.88);align-items:center;justify-content:center">
