@@ -434,12 +434,12 @@ const CLS={
 
 // ── WEAPONS ───────────────────────────────────────────────────────
 const WPN={
-  AK74M:{dmg:22,rof:108,rng:380,auto:1,bSpd:650,bSz:2.5,col:'#FFDD44',snd:'r'},
-  AK105:{dmg:22,rof:108,rng:430,auto:1,bSpd:680,bSz:2.5,col:'#88AAFF',snd:'rs'},
-  SVD:  {dmg:120,rof:1100,rng:900,auto:0,bSpd:1000,bSz:3.5,col:'#FF8833',snd:'s'},
-  RPG7: {dmg:380,rof:3500,rng:300,auto:0,bSpd:420,bSz:7,col:'#FF6600',snd:'x',expl:120},
-  MGVEH:{dmg:28,rof:85,rng:520,auto:1,bSpd:700,bSz:3,col:'#CCCCCC',snd:'r'},
-  CANNON:{dmg:550,rof:4200,rng:900,auto:0,bSpd:600,bSz:8,col:'#888888',snd:'x',expl:140}
+  AK74M: {dmg:10, rof:108, rng:380,auto:1,bSpd:650,bSz:2.5,col:'#FFDD44',snd:'r'},
+  AK105: {dmg:10, rof:108, rng:430,auto:1,bSpd:680,bSz:2.5,col:'#88AAFF',snd:'rs'},
+  SVD:   {dmg:55, rof:1100,rng:900,auto:0,bSpd:1000,bSz:3.5,col:'#FF8833',snd:'s'},
+  RPG7:  {dmg:280,rof:3500,rng:300,auto:0,bSpd:420,bSz:7,col:'#FF6600',snd:'x',expl:120},
+  MGVEH: {dmg:12, rof:85,  rng:520,auto:1,bSpd:700,bSz:3,col:'#CCCCCC',snd:'r'},
+  CANNON:{dmg:380,rof:4200,rng:900,auto:0,bSpd:600,bSz:8,col:'#888888',snd:'x',expl:140}
 };
 
 // ── VEHICLE DEFS ─────────────────────────────────────────────────
@@ -708,6 +708,7 @@ function doSpawn(){
     let el=document.getElementById(id);if(el)el.style.display='flex';});
   document.getElementById('bheal').style.display='flex'; // seringue pour tous
   updateAbBtn();gameOn=true;updateHUD();netConnect();
+  let _mb=document.getElementById('micBtn');if(_mb)_mb.style.display='block';
 }
 
 // ── SINGLE JOYSTICK ───────────────────────────────────────────────
@@ -844,7 +845,6 @@ function throwGren(){
 // ── ABILITIES ────────────────────────────────────────────────────
 function useAbility(){
   if(pDead)return;
-  // Dynamic: use whatever special item is in the bag (not class-based)
   let sp=getActiveSp();
   if(!sp||(pBag[sp]||0)<=0)return;
   switch(sp){
@@ -925,19 +925,14 @@ function useHeal(){
   }
 }
 
-// ── Item metadata for dynamic HUD
+// Système de loot dynamique : le HUD reflète le contenu réel de pBag
 const SP_META={
-  drone: {icon:'🚁',name:'Drone FPV'},
-  rpg:   {icon:'🚀',name:'RPG-7'},
-  range: {icon:'🔭',name:'Télémètre'},
-  ammo:  {icon:'📦',name:'Pack Munitions'},
-  medkit:{icon:'💉',name:'Kit Médical'},
+  drone:{icon:'🚁'},rpg:{icon:'🚀'},range:{icon:'🔭'},ammo:{icon:'📦'}
 };
-const SP_ORDER=['drone','rpg','range','ammo']; // priority (medkit has own button)
+const SP_ORDER=['drone','rpg','range','ammo'];
 
-// Returns the key of the first available special in pBag (priority order)
 function getActiveSp(){
-  for(let k of SP_ORDER){ if((pBag[k]||0)>0)return k; }
+  for(let k of SP_ORDER){if((pBag[k]||0)>0)return k;}
   return null;
 }
 
@@ -952,7 +947,6 @@ function updateAbBtn(){
     el.innerHTML=`⬛<span style="font-size:9px">0</span>`;
     el.style.opacity='0.4';
   }
-  // Keep pSpecial in sync (for any legacy code)
   pSpecial=(pBag[getActiveSp()]||0);
 }
 
@@ -1024,18 +1018,7 @@ function spawnExplosion(wx,wy,r,dmg,owner,team){
 // ── DAMAGE ────────────────────────────────────────────────────────
 function takeDamage(amt,from){
   if(pDead)return;
-  php-=amt;dmgFlash=.5;
-  // ── Directional blood splatters (away from shooter)
-  let _bdir=from?Math.atan2(py-from.y,px-from.x):pdir+Math.PI;
-  for(let _i=0;_i<5;_i++){
-    let _a=_bdir+(Math.random()-.5)*1.8;
-    let _spd=35+Math.random()*55;
-    particles.push({x:px,y:py,
-      vx:Math.cos(_a)*_spd,vy:Math.sin(_a)*_spd,
-      r:1.5+Math.random()*2.5,life:0.45,maxLife:0.45,
-      col:'#CC1111',col2:'#881111'});
-  }
-  if(php<=0){php=0;die(from);}updateHUD();
+  php-=amt;dmgFlash=.5;if(php<=0){php=0;die(from);}updateHUD();
 }
 
 function die(killer){
@@ -1059,10 +1042,9 @@ function die(killer){
   chan&&chan.publish('tix',{...tickets});
   if(tickets.UA<=0||tickets.RU<=0)checkWin();
 
-  // 4. Show death screen + block canvas input
+  // 4. Show death screen
   let _ds=document.getElementById('ds');
   if(_ds)_ds.style.display='flex';
-  let _gcEl=document.getElementById('gc');if(_gcEl)_gcEl.style.pointerEvents='none';
 
   // 5. Legacy died event (for remote dead rendering)
   chan&&chan.publish('died',{id:myId,x:px,y:py,team:myTeam,cls:myCls,
@@ -1094,8 +1076,6 @@ function clickRespawn(){
   // Broadcast new position immediately
   chan&&chan.publish('pos',{id:myId,name:myName,x:px,y:py,dir:pdir,
     team:myTeam,cls:myCls,hp:php,dead:false,inVeh:null,moving:false,wfr:0,sfr:0});
-  // Request full game state (for late joiners / reconnects)
-  setTimeout(()=>chan&&chan.publish('reqState',{id:myId}),850);
   updateHUD();updateAbBtn();
 }
 
@@ -1116,10 +1096,6 @@ function doRespawn(){
   else{px=WW-180+~~(Math.random()*60);py=WH/2+_sOff;}
   pdir=myTeam==='RU'?0:Math.PI;
   document.getElementById('ds').style.display='none';
-  // ── Restore canvas + hard ctx reset
-  let _gcR=document.getElementById('gc');if(_gcR)_gcR.style.pointerEvents='auto';
-  if(ctx){ctx.globalAlpha=1;ctx.globalCompositeOperation='source-over';
-    ctx.shadowBlur=0;ctx.shadowColor='transparent';ctx.setTransform(1,0,0,1,0,0);}
   _respawnReady=false; // reset for next death
   // Reset respawn button for next death
   let _btn=document.getElementById('respawnBtn');
@@ -1131,24 +1107,14 @@ function doRespawn(){
   // Tell all players this player has a new position (corpse stays in _corpses)
   chan&&chan.publish('pos',{id:myId,name:myName,x:px,y:py,dir:pdir,
     team:myTeam,cls:myCls,hp:php,dead:false,inVeh:null,moving:false,wfr:0,sfr:0});
-  // Request full game state (for late joiners / reconnects)
-  setTimeout(()=>chan&&chan.publish('reqState',{id:myId}),850);
   updateHUD();updateAbBtn();
 }
 
 function checkWin(){
+  _corpses=[];deadBodies=[];remoteBodies=[]; // Clear corpses on game restart
   let w=tickets.UA<=0?'RU':'UA';
-  showNotif((w==='UA'?'🇺🇦 UKRAINE':'🇷🇺 RUSSIE')+' VICTOIRE! Reset dans 10s...');
-  setTimeout(()=>{
-    // Full reset: clear ALL persistent state
-    _allCorpses=[];deadBodies=[];remoteBodies=[];
-    tickets={UA:WIN_TIX,RU:WIN_TIX};
-    CAPS.forEach(c=>{c.team=null;c.capProg=0;});
-    // Broadcast reset to all players
-    chan&&chan.publish('gameReset',{ts:Date.now()});
-    chan&&chan.publish('tix',{...tickets});
-    updateHUD();showNotif('🔄 Nouvelle manche!');
-  },10000);
+  showNotif((w==='UA'?'🇺🇦 UKRAINE':'🇷🇺 RUSSIE')+' VICTOIRE! Reset 10s...');
+  setTimeout(()=>{tickets={UA:WIN_TIX,RU:WIN_TIX};CAPS.forEach(c=>{c.team=null;c.capProg=0;});updateHUD();},10000);
 }
 
 // ── CAPTURE (FIXED) ───────────────────────────────────────────────
@@ -1281,8 +1247,7 @@ function valInv(){
     Object.entries(lootBody.inventory).forEach(([k,v])=>{if(v>0)(pBag[k]=(pBag[k]||0)+v);});
     lootBody.inventory={};showNotif('✅ Loot récupéré!');
   }
-  updateHUD();updateAbBtn(); // HUD reflects new inventory immediately
-  closeInv();
+  updateHUD();updateAbBtn();closeInv();
 }
 
 // ── NETWORK ───────────────────────────────────────────────────────
@@ -1360,35 +1325,6 @@ function netConnect(){
           name:d.name||'?',angle:d.angle||0,blood:d.blood||28,df:d.df||0});
     });
     chan.subscribe('tix',m=>{let d=m.data;if(d)tickets=d;updateHUD();});
-
-    // ── STATE SYNC: late-joining player requests full state ──────────────
-    chan.subscribe('reqState',m=>{
-      if(!gameOn)return;
-      let req=m.data||{};if(req.id===myId)return;
-      // Respond: broadcast all corpses
-      _allCorpses.forEach(c=>setTimeout(()=>chan&&chan.publish('corpse2',c),80));
-      // Broadcast caps + tickets
-      chan.publish('capsSync',CAPS.map(c=>({id:c.id,team:c.team,prog:c.capProg||0})));
-      chan.publish('tix',{...tickets});
-    });
-
-    // ── CAPS SYNC: update all objective states ───────────────────────────
-    chan.subscribe('capsSync',m=>{
-      let d=m.data;if(!Array.isArray(d))return;
-      d.forEach(s=>{
-        let cap=CAPS.find(c=>c.id===s.id);
-        if(cap){cap.team=s.team;cap.capProg=s.prog||0;}
-      });
-      updateHUD();
-    });
-
-    // ── GAME RESET: clean slate on ticket-based reset ────────────────────
-    chan.subscribe('gameReset',m=>{
-      _allCorpses=[];deadBodies=[];remoteBodies=[];
-      CAPS.forEach(c=>{c.team=null;c.capProg=0;});
-      tickets={UA:WIN_TIX,RU:WIN_TIX};
-      updateHUD();showNotif('🔄 Nouvelle manche!');
-    });
         // Handle remote player respawn — fresh entity, corpse stays in _corpses[]
     chan.subscribe('spawn',m=>{
       let d=m.data;if(!d||d.id===myId)return;
@@ -1824,7 +1760,7 @@ function drawBulletsFn(dt){
       if(dh){bullets.splice(i,1);continue;}
     }
     // Hit check — local player
-    if(b.owner!==myId&&b.team!==myTeam&&!pDead&&Math.hypot(b.x-px,b.y-py)<12){
+    if(b.owner!==myId&&b.team!==myTeam&&!pDead&&Math.hypot(b.x-px,b.y-py)<8){
       takeDamage(b.dmg,b.owner);chan&&chan.publish('hit',{target:myId,from:b.owner,dmg:b.dmg});
       bullets.splice(i,1);continue;
     }
@@ -1833,7 +1769,19 @@ function drawBulletsFn(dt){
       let hit=false;
       Object.entries(remotes).forEach(([rid,r])=>{
         if(hit||r.dead||r.team===myTeam)return;
-        if(Math.hypot(b.x-r.x,b.y-r.y)<14){chan&&chan.publish('hit',{target:rid,from:myId,dmg:b.dmg});hit=true;}
+        if(Math.hypot(b.x-r.x,b.y-r.y)<8){
+          chan&&chan.publish('hit',{target:rid,from:myId,dmg:b.dmg});hit=true;
+          // Éclaboussures de sang à l'impact (dessinées sur l'écran du tireur)
+          let _ibd=Math.atan2(b.dy,b.dx);
+          for(let _ibi=0;_ibi<4;_ibi++){
+            let _iba=_ibd+Math.PI+(Math.random()-.5)*2.0;
+            let _ibs=28+Math.random()*48;
+            particles.push({x:b.x,y:b.y,
+              vx:Math.cos(_iba)*_ibs,vy:Math.sin(_iba)*_ibs,
+              r:1.5+Math.random()*2.0,life:0.4,maxLife:0.4,
+              col:'#CC0000',col2:'#880000'});
+          }
+        }
       });
       if(hit){bullets.splice(i,1);continue;}
     }
@@ -2088,23 +2036,9 @@ function drawDeadBodies(){
     try{
       let sx=c.x-camX,sy=c.y-camY;
       if(Math.abs(sx)>W+100||Math.abs(sy)>H+100)return;
-      // ── Progressive blood pool (grows from 0 to c.blood over time)
-      if(c.bloodPool===undefined)c.bloodPool=0;
-      if(c.bloodPool<(c.blood||28))c.bloodPool=Math.min(c.blood||28,c.bloodPool+0.4);
-      let bp=c.bloodPool;
-      // Draw as scattered arcs around the body (no ellipse)
-      ctx.save();ctx.fillStyle='#500';
-      let seed=c.cid.charCodeAt(0)||0;
-      for(let i=0;i<7;i++){
-        let a=(i/7)*Math.PI*2+(seed%6)*0.5;
-        let r=bp*0.25+(i%3)*2.5;
-        let sz=1.5+(i%3);
-        ctx.globalAlpha=0.35+0.15*(i%2);
-        ctx.beginPath();
-        ctx.arc(sx+Math.cos(a)*r*0.8,sy+6+Math.sin(a)*r*0.45,sz,0,Math.PI*2);
-        ctx.fill();
-      }
-      ctx.restore();
+      ctx.save();ctx.globalAlpha=0.55;ctx.fillStyle='#400';
+      ctx.beginPath();ctx.ellipse(sx,sy+8,c.blood||28,(c.blood||28)*.3,0,0,Math.PI*2);
+      ctx.fill();ctx.restore();
       drawSoldierSprite(sx,sy,c.angle||0,c.team,c.cls||'fusil',
         c.team===myTeam,c.name||'',0,false,false,false,true,false,0,0,0);
     }catch(e){}
@@ -2113,25 +2047,43 @@ function drawDeadBodies(){
 
 
 // ══════════════════════════════════════════════════════════════════
-// VOICE CHAT — WebRTC with explicit mic permission
+// ══════════════════════════════════════════════════════════════════
+// VOICE CHAT v2 — WebRTC, UI propre, pas de confirm()
 // ══════════════════════════════════════════════════════════════════
 let _voiceStream=null,_voicePeers={},_voiceChan=null;
 let _speakerName=null,_speakerTimer=0,_voiceActive=false;
 let _myAudioLevel=0,_audioAnalyser=null;
 
+// Affiche l'overlay de demande de permission (pas de confirm())
 function requestMicPermission(){
-  // Show permission dialog
-  if(!confirm('🎙️ Chat vocal\n\nAutorisez le micro pour parler avec votre équipe ?\n\nCliquez OK pour activer.'))return;
+  if(_voiceActive){showNotif('🎙️ Vocal déjà actif !');return;}
+  let el=document.getElementById('vcPerm');
+  if(el)el.style.display='flex';
+}
+// Bouton "Autoriser"
+function vcAccept(){
+  let el=document.getElementById('vcPerm');if(el)el.style.display='none';
+  let mb=document.getElementById('micBtn');if(mb)mb.style.display='none';
   initVoiceChat();
+}
+// Bouton "Refuser"
+function vcDeny(){
+  let el=document.getElementById('vcPerm');if(el)el.style.display='none';
+  showNotif('🎙️ Micro refusé');
 }
 
 async function initVoiceChat(){
   try{
     _voiceStream=await navigator.mediaDevices.getUserMedia({
-      audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true},video:false
+      audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true},
+      video:false
     });
     _voiceActive=true;
-    // Audio level detection
+    // Update mic button to show active
+    let mb=document.getElementById('micBtn');
+    if(mb){mb.innerHTML='🎙️ ON';mb.style.background='rgba(0,130,0,0.9)';
+      mb.style.display='block';mb.onclick=null;mb.style.cursor='default';}
+    // Audio analyser pour détecter quand on parle
     let _ac=new (window.AudioContext||window.webkitAudioContext)();
     let _src=_ac.createMediaStreamSource(_voiceStream);
     _audioAnalyser=_ac.createAnalyser();_audioAnalyser.fftSize=512;
@@ -2142,13 +2094,13 @@ async function initVoiceChat(){
       _audioAnalyser.getByteFrequencyData(_buf);
       let s=0;_buf.slice(0,30).forEach(v=>s+=v);
       _myAudioLevel=s/30;
-      if(_myAudioLevel>22&&_voiceChan&&chan)
+      if(_myAudioLevel>22&&_voiceChan)
         _voiceChan.publish('spk',{id:myId,name:myName,team:myTeam});
       setTimeout(_poll,150);
     }
     _poll();
-    // Ably signaling
-    _voiceChan=realtime.channels.get('ff_vc_'+myTeam+'_'+AKEY.slice(0,6));
+    // Canal de signalisation Ably (utilise ablyClient, pas realtime)
+    _voiceChan=ablyClient.channels.get('ff_vc_'+myTeam+'_'+AKEY.slice(0,6));
     _voiceChan.subscribe('join',async m=>{
       let d=m.data;if(!d||d.id===myId||d.team!==myTeam)return;
       await _vcOffer(d.id);
@@ -2162,21 +2114,26 @@ async function initVoiceChat(){
     });
     _voiceChan.subscribe('answer',async m=>{
       let d=m.data;if(!d||d.to!==myId)return;
-      let pc=_voicePeers[d.from];if(pc)await pc.setRemoteDescription(new RTCSessionDescription(d.sdp));
+      let pc=_voicePeers[d.from];
+      if(pc)await pc.setRemoteDescription(new RTCSessionDescription(d.sdp));
     });
     _voiceChan.subscribe('ice',async m=>{
       let d=m.data;if(!d||d.to!==myId)return;
-      let pc=_voicePeers[d.from];if(pc&&d.candidate)await pc.addIceCandidate(new RTCIceCandidate(d.candidate));
+      let pc=_voicePeers[d.from];
+      if(pc&&d.candidate)await pc.addIceCandidate(new RTCIceCandidate(d.candidate));
     });
     _voiceChan.subscribe('spk',m=>{
       let d=m.data;if(!d||d.id===myId||d.team!==myTeam)return;
       _speakerName=d.name;_speakerTimer=2.5;
     });
     setTimeout(()=>_voiceChan&&_voiceChan.publish('join',{id:myId,name:myName,team:myTeam}),600);
-    showNotif('🎙️ Vocal '+myTeam+' actif');
+    showNotif('🎙️ Chat vocal '+myTeam+' actif !');
   }catch(e){
-    showNotif('🎙️ Micro refusé: '+e.message);
-    console.warn('[Voice]',e);
+    _voiceActive=false;
+    showNotif('🎙️ Erreur micro: '+e.message.slice(0,35));
+    let mb=document.getElementById('micBtn');
+    if(mb){mb.innerHTML='🎙️ Activer vocal';mb.style.background='rgba(0,80,0,0.85)';}
+    console.warn('[VoiceChat]',e);
   }
 }
 
@@ -2204,28 +2161,59 @@ async function _vcOffer(peerId){
   _voiceChan&&_voiceChan.publish('offer',{from:myId,to:peerId,sdp:offer,team:myTeam});
 }
 
+// HUD vocal — affiché dans le game loop
 function drawVoiceHUD(){
-  // Speaking indicator (top center)
+  ctx.shadowBlur=0; // reset shadow avant de dessiner l'UI vocal
+  // Indicateur "qui parle" (haut centre)
   if(_speakerTimer>0){
     _speakerTimer-=1/60;
-    let a=Math.min(1,_speakerTimer*2);
+    let a=Math.min(1,_speakerTimer*3);
     ctx.save();
-    ctx.fillStyle=`rgba(0,0,0,${a*0.7})`;
-    let tw=ctx.measureText('🎙 '+(_speakerName||'')).width+20;
-    ctx.fillRect(W/2-tw/2-5,10,tw+10,24);
-    ctx.fillStyle=`rgba(80,255,120,${a})`;
     ctx.font='bold 12px Courier New';ctx.textAlign='center';
-    ctx.fillText('🎙 '+(_speakerName||'?'),W/2,27);ctx.restore();
+    let label='🎙 '+(_speakerName||'?');
+    let tw=ctx.measureText(label).width+24;
+    ctx.fillStyle=`rgba(0,0,0,${a*0.82})`;
+    ctx.fillRect(W/2-tw/2,6,tw,24);
+    ctx.strokeStyle=`rgba(60,255,80,${a*0.7})`;ctx.lineWidth=1;
+    ctx.strokeRect(W/2-tw/2,6,tw,24);
+    ctx.fillStyle=`rgba(120,255,120,${a})`;
+    ctx.fillText(label,W/2,23);
+    ctx.restore();
   }
-  // Own mic level indicator
-  if(_voiceActive&&_myAudioLevel>22){
-    ctx.save();ctx.fillStyle='rgba(60,220,60,0.9)';
-    ctx.beginPath();ctx.arc(W-28,H-28,9,0,Math.PI*2);ctx.fill();
+  // Point vert quand micro actif (bas gauche)
+  if(_voiceActive){
+    ctx.save();
+    let spk=_myAudioLevel>22;
+    ctx.fillStyle=spk?'rgba(20,210,20,0.95)':'rgba(20,110,20,0.75)';
+    let r=spk?11:8;
+    ctx.beginPath();ctx.arc(18,H-18,r,0,Math.PI*2);ctx.fill();
+    ctx.strokeStyle='rgba(255,255,255,0.45)';ctx.lineWidth=1;
+    ctx.beginPath();ctx.arc(18,H-18,r,0,Math.PI*2);ctx.stroke();
     ctx.fillStyle='#fff';ctx.font='10px serif';ctx.textAlign='center';
-    ctx.fillText('🎙',W-28,H-24);ctx.restore();
+    ctx.fillText('🎙',18,H-14);
+    ctx.restore();
   }
 }
 
+// ── PARTICLES — muzzle flash, débris, sang ────────────────────────
+function drawParticles(dt){
+  for(let _pi=particles.length-1;_pi>=0;_pi--){
+    let p=particles[_pi];
+    p.x+=p.vx*dt;p.y+=p.vy*dt;
+    p.vx*=0.82;p.vy*=0.82;
+    p.life-=dt;
+    if(p.life<=0){particles.splice(_pi,1);continue;}
+    let sx=p.x-camX,sy=p.y-camY;
+    if(sx<-20||sx>W+20||sy<-20||sy>H+20)continue;
+    let al=p.life/p.maxLife;
+    ctx.save();
+    ctx.globalAlpha=al*0.85;
+    ctx.shadowBlur=0;
+    ctx.fillStyle=al>0.5?(p.col||'#FFF'):(p.col2||p.col||'#FFF');
+    ctx.beginPath();ctx.arc(sx,sy,Math.max(0.5,p.r*al),0,Math.PI*2);ctx.fill();
+    ctx.restore();
+  }
+}
 function loop(ts){
   requestAnimationFrame(loop);
   let dt=Math.min((ts-lastT)/1000,.05);lastT=ts;
@@ -2316,15 +2304,13 @@ function loop(ts){
   vehicles.forEach(v=>{if(!v.available&&v.respawnT>0){v.respawnT-=dt;if(v.respawnT<=0){v.available=true;v.hp=VDEFS[v.type].hp;v.wx=v.spawnX;v.wy=v.spawnY;}}});
 
   // ── DRAW ──
-  // ── Full canvas state reset (prevents shadow/alpha leaks across frames)
-  ctx.globalAlpha=1;ctx.globalCompositeOperation='source-over';
-  ctx.shadowBlur=0;ctx.shadowColor='transparent';
-  ctx.setTransform(1,0,0,1,0,0);
+  ctx.globalAlpha=1;ctx.setTransform(1,0,0,1,0,0); // Reset state each frame
   ctx.fillStyle='#1A2218';ctx.fillRect(0,0,W,H);
   drawTerrain();
   drawCaps();
   drawGrensFn(dt);
   drawBulletsFn(dt);
+  drawParticles(dt);
   drawExplsFn(dt);
   drawVehicles();
   drawDeadBodies();
@@ -2386,13 +2372,35 @@ window.addEventListener('visibilitychange',()=>{
 </script>
 <script src="https://cdn.ably.io/lib/ably.min-1.js"></script>
 
-<button id="micBtn" onclick="requestMicPermission();this.style.display='none'"
-  style="display:none;position:fixed;bottom:90px;left:10px;z-index:200;
-  background:rgba(0,80,0,0.85);color:#afffaf;border:1px solid #3f3;
-  border-radius:8px;padding:8px 12px;font-size:13px;font-family:Courier New;
-  align-items:center;gap:6px;cursor:pointer">
-  🎙️ Activer vocal
-</button>
+<!-- Bouton vocal (visible en jeu) -->
+<button id="micBtn" onclick="requestMicPermission()"
+  style="display:none;position:fixed;bottom:88px;left:10px;z-index:200;
+  background:rgba(0,70,0,0.88);color:#afffaf;border:1px solid #3f3;
+  border-radius:8px;padding:8px 14px;font-size:12px;font-family:'Courier New',monospace;
+  cursor:pointer;letter-spacing:1px">🎙️ Activer vocal</button>
+
+<!-- Overlay permission microphone -->
+<div id="vcPerm" style="display:none;position:fixed;inset:0;z-index:900;
+  background:rgba(0,0,0,0.88);align-items:center;justify-content:center">
+  <div style="background:#0A1A0A;border:2px solid #44FF44;border-radius:14px;
+    padding:30px 24px;max-width:290px;width:88%;text-align:center;
+    font-family:'Courier New',monospace;color:#C8FF90;
+    box-shadow:0 0 50px rgba(0,180,0,0.2)">
+    <div style="font-size:40px;margin-bottom:12px">🎙️</div>
+    <div style="font-size:14px;font-weight:bold;letter-spacing:3px;margin-bottom:10px;
+      color:#88FF88">CHAT VOCAL</div>
+    <div style="font-size:11px;color:#77AA77;margin-bottom:24px;line-height:1.7">
+      Autoriser l'accès au microphone pour communiquer avec votre équipe en temps réel</div>
+    <button onclick="vcAccept()" style="display:block;width:100%;margin-bottom:12px;
+      padding:12px 0;background:#163016;color:#88FF88;border:1px solid #44FF44;
+      border-radius:8px;font-size:13px;font-family:'Courier New',monospace;
+      cursor:pointer;letter-spacing:1px">✅ AUTORISER LE MICRO</button>
+    <button onclick="vcDeny()" style="display:block;width:100%;padding:10px 0;
+      background:#221218;color:#FF8888;border:1px solid #884444;
+      border-radius:8px;font-size:12px;font-family:'Courier New',monospace;
+      cursor:pointer">❌ Refuser</button>
+  </div>
+</div>
 
 </body>
 </html>
