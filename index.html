@@ -332,7 +332,7 @@ body{background:#0A0D08;overflow:hidden;font-family:'Courier New',monospace;user
     <div class="hb" id="hammo">🔫 30 | 4 chg</div>
     <div class="hb" id="hcls">⬛</div>
     <div id="hspk" style="font-family:'Courier New',monospace;font-size:10px;color:#88FF88;letter-spacing:1px;min-height:14px;padding:1px 0"></div>
-    <div id="dashboard" style="display:none;position:fixed;inset:0;z-index:250;background:rgba(0,0,0,0.75);font-family:'Courier New',monospace;color:#fff">
+    <div id="dashboard" style="display:none;position:fixed;inset:0;z-index:250;pointer-events:auto;background:rgba(0,0,0,0.75);font-family:'Courier New',monospace;color:#fff">
   <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:88%;max-width:380px;background:#0A0D08;border:1px solid rgba(255,255,255,0.2);border-radius:12px;padding:16px;max-height:80vh;overflow-y:auto;box-sizing:border-box">
     <div style="text-align:center;font-size:13px;font-weight:bold;letter-spacing:2px;margin-bottom:14px">JOUEURS CONNECTÉS</div>
     <div style="font-size:11px;color:#4488FF;margin-bottom:4px;letter-spacing:1px">UKRAINE</div>
@@ -656,6 +656,7 @@ const WPN={
   AK74M_SIL: {dmg:10, rof:108, rng:380,auto:1,bSpd:650,bSz:2.5,col:'#FFDD44',snd:'aks'},
   AK105:     {dmg:10, rof:108, rng:430,auto:1,bSpd:680,bSz:2.5,col:'#88AAFF',snd:'aks'},
   M4A1:      {dmg:10, rof:100, rng:390,auto:1,bSpd:700,bSz:2.5,col:'#FFFFAA',snd:'m'},
+  M16A4:     {dmg:11, rof:115, rng:430,auto:1,bSpd:700,bSz:2.5,col:'#FFFFAA',snd:'m'},
   SVD:       {dmg:55, rof:1100,rng:900,auto:0,bSpd:1000,bSz:3.5,col:'#FF8833',snd:'s'},
   RPG7:      {dmg:150,rof:3500,rng:300,auto:0,bSpd:420,bSz:7,col:'#FF6600',snd:'x',expl:120},
   MGVEH:     {dmg:12, rof:85,  rng:520,auto:1,bSpd:700,bSz:3,col:'#CCCCCC',snd:'r'},
@@ -1395,7 +1396,7 @@ document.addEventListener('touchstart',e=>{
     if(t.clientX<W*0.28)continue;
     // Ignorer uniquement les overlays critiques (pas les boutons d'action)
     let el=t.target;
-    if(el.closest('#mm,#inv,#ds,#notif,#bloot,#bvspawn,#veh_spawn_menu,#veh_spawn_list,#bveh,#bheal,#bgren,#bab,#binv'))continue;
+    if(el.closest('#mm,#inv,#ds,#notif,#bloot,#bvspawn,#veh_spawn_menu,#veh_spawn_list,#bveh,#bheal,#bgren,#bab,#binv,#dashboard,#hmbtn'))continue;
     if(t.clientY>H*0.88)continue; // zone basse = boutons seulement
     aimTId=t.identifier;aimTX=t.clientX;aimTY=t.clientY;
     shooting=true;
@@ -3608,7 +3609,19 @@ window.addEventListener('visibilitychange',()=>{
           selT(team);
           selReg(regiment);
           selC(cls);
-          setTimeout(function(){try{doSpawn();}catch(e){console.warn('[autospawn] doSpawn erreur',e);}var ov=document.getElementById('autospawnOverlay');if(ov)ov.remove();},300);
+          setTimeout(function(){
+            try{doSpawn();}catch(e){console.warn('[autospawn] doSpawn erreur',e);}
+            try{
+              var wpnChoice=params.get('weapon');
+              if(wpnChoice&&WPN[wpnChoice]){
+                pWeapon=wpnChoice;
+                pBag[wpnChoice]=1;
+                pBag[wpnChoice+'_a']=pAmmo||30;
+                pBag[wpnChoice+'_m']=pMags||4;
+              }
+            }catch(e){console.warn('[autospawn] arme erreur',e);}
+            var ov=document.getElementById('autospawnOverlay');if(ov)ov.remove();
+          },300);
         }catch(e){console.warn('[autospawn] echec',e);}
       },500);
     }
