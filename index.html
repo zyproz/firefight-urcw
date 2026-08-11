@@ -1328,6 +1328,7 @@ joy.addEventListener('touchstart',e=>{
 },{passive:false});
 
 document.addEventListener('touchmove',e=>{
+  if(e.target.closest('#dashboard'))return;
   e.preventDefault();
   for(let t of e.changedTouches){
     if(jActive&&t.identifier===jId){
