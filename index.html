@@ -3380,18 +3380,40 @@ let _speakerName=null,_speakerTimer=0,_voiceActive=false;
 let _myAudioLevel=0,_audioAnalyser=null;
 
 function requestMicPermission(){
-  if(_voiceActive){showNotif('🎙️ Vocal déjà actif !');return;}
+  if(_voiceActive){vcDeactivate();return;}
   let el=document.getElementById('vcPerm');
   if(el)el.style.display='flex';
 }
 function vcAccept(){
   let el=document.getElementById('vcPerm');if(el)el.style.display='none';
-  let mb=document.getElementById('micBtn');if(mb)mb.style.display='none';
   initVoiceChat();
 }
 function vcDeny(){
   let el=document.getElementById('vcPerm');if(el)el.style.display='none';
   showNotif('🎙️ Micro refusé');
+}
+function vcSetActiveUI(active){
+  let mb=document.getElementById('micBtn');
+  if(!mb)return;
+  if(active){
+    mb.innerHTML='🎤<span style="font-size:8px;display:block;margin-top:1px">ACTIVÉ</span>';
+    mb.style.background='rgba(0,180,0,0.85)';
+    mb.style.borderColor='#44FF44';
+  }else{
+    mb.innerHTML='🎙️';
+    mb.style.background='rgba(0,50,0,0.82)';
+    mb.style.borderColor='rgba(60,255,60,0.5)';
+  }
+}
+function vcDeactivate(){
+  try{
+    if(_voiceStream){_voiceStream.getTracks().forEach(t=>t.stop());_voiceStream=null;}
+    Object.values(_voicePeers||{}).forEach(pc=>{try{pc.close();}catch(e){}});
+    _voicePeers={};
+    _voiceActive=false;
+    vcSetActiveUI(false);
+    showNotif('🎙️ Micro désactivé');
+  }catch(e){console.warn('[voice] erreur desactivation',e);}
 }
 
 async function initVoiceChat(){
@@ -3400,6 +3422,7 @@ async function initVoiceChat(){
       audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true},video:false
     });
     _voiceActive=true;
+    vcSetActiveUI(true);
     // Audio level detection
     let _ac=new (window.AudioContext||window.webkitAudioContext)();
     let _src=_ac.createMediaStreamSource(_voiceStream);
