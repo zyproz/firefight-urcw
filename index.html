@@ -70,22 +70,22 @@ body{background:#0A0D08;overflow:hidden;font-family:'Courier New',monospace;user
 #jk{position:absolute;width:48px;height:48px;background:rgba(255,255,255,.28);
   border:2px solid rgba(255,255,255,.55);border-radius:50%;top:41px;left:41px;
   transform:translate(-50%,-50%);pointer-events:none}
-.cbtn{position:fixed;border-radius:12px;cursor:pointer;z-index:61;touch-action:none;
-  display:none;align-items:center;justify-content:center;font-size:26px;
-  background:rgba(0,0,0,0.25);border:1px solid rgba(255,255,255,0.2);
-  width:58px;height:58px;backdrop-filter:blur(2px);overflow:visible}
+.cbtn{position:fixed;bottom:0;top:auto;height:46px;cursor:pointer;z-index:61;touch-action:none;
+  display:none;align-items:center;justify-content:center;font-size:17px;
+  background:rgba(8,10,6,0.82);border:1px solid rgba(255,255,255,0.15);border-top:2px solid rgba(200,255,90,0.25);
+  overflow:visible;box-sizing:border-box}
 #bfire{display:none!important}
 /* Barre 6 slots — Arme | Gren | Syr | Spécial | Véh | Sac */
-#bwpn{right:auto;left:calc(50% - 192px);bottom:14px;}
-#bgren{right:auto;left:calc(50% - 128px);bottom:14px;}
-#bheal{right:auto;left:calc(50% - 64px);bottom:14px;}
-#bab{right:auto;left:calc(50%);bottom:14px;}
-#bveh{right:auto;left:calc(50% + 64px);bottom:14px;}
+#bwpn{right:auto;left:0%;width:16.666%;}
+#bgren{right:auto;left:16.666%;width:16.666%;}
+#bheal{right:auto;left:33.333%;width:16.666%;}
+#bab{right:auto;left:50%;width:16.666%;}
+#bveh{right:auto;left:66.666%;width:16.666%;}
 #bmap{position:fixed;left:18px;bottom:16px;width:52px;height:52px;
   border-radius:8px;background:rgba(0,50,100,.7);border:1px solid rgba(0,120,255,.4);
   color:#fff;font-size:18px;cursor:pointer;z-index:61;touch-action:none;display:none;
   align-items:center;justify-content:center;pointer-events:auto}
-#binv{position:fixed;right:auto;left:calc(50% + 128px);bottom:14px;width:58px;height:58px;border-radius:12px;background:rgba(0,0,0,0.25);border:1px solid rgba(255,255,255,0.2);}
+#binv{position:fixed;right:auto;left:83.333%;width:16.666%;bottom:0;height:46px;background:rgba(8,10,6,0.82);border:1px solid rgba(255,255,255,0.15);border-top:2px solid rgba(200,255,90,0.25);box-sizing:border-box;z-index:61;touch-action:none;}
 #rlbar{position:fixed;bottom:152px;left:50%;transform:translateX(-50%);display:none;z-index:55}
 #rlo{width:120px;height:8px;background:rgba(0,0,0,.7);border:1px solid rgba(255,255,255,.3);
   border-radius:4px;overflow:hidden}
@@ -373,14 +373,14 @@ body{background:#0A0D08;overflow:hidden;font-family:'Courier New',monospace;user
       <div id="db_ru" style="margin-bottom:8px;font-size:12px"></div>
     </div>
     <div id="db_panel_renfort" style="display:none">
+      <button id="db_reinf_btn" onclick="buyReinforcements()" style="width:100%;box-sizing:border-box;padding:12px;margin-bottom:8px;background:rgba(200,255,90,0.12);border:2px solid #C8FF5A;border-radius:8px;color:#C8FF5A;font-family:'Courier New',monospace;font-weight:bold;text-align:left">
+        🎖️ Demander du renfort<br><span style="font-size:9px;font-weight:normal;color:rgba(255,255,255,0.5)">2 coéquipiers vous suivent — 50 Braves</span>
+      </button>
       <button id="db_recon_btn" onclick="buyRecon()" style="width:100%;box-sizing:border-box;padding:12px;margin-bottom:8px;background:rgba(68,136,255,0.12);border:2px solid #4488FF;border-radius:8px;color:#88BBFF;font-family:'Courier New',monospace;font-weight:bold;text-align:left">
-        🛸 Drone de reconnaissance<br><span style="font-size:9px;font-weight:normal;color:rgba(255,255,255,0.5)">Révèle les ennemis 15s — 50 Braves</span>
+        🛸 Drone de reconnaissance<br><span style="font-size:9px;font-weight:normal;color:rgba(255,255,255,0.5)">Révèle les ennemis 15s — 75 Braves</span>
       </button>
-      <button id="db_strike_btn" onclick="buyAirstrike()" style="width:100%;box-sizing:border-box;padding:12px;margin-bottom:8px;background:rgba(255,80,80,0.12);border:2px solid #FF5555;border-radius:8px;color:#FF9999;font-family:'Courier New',monospace;font-weight:bold;text-align:left">
-        ✈️ Frappe aérienne<br><span style="font-size:9px;font-weight:normal;color:rgba(255,255,255,0.5)">Sur la zone choisie — 150 Braves</span>
-      </button>
-      <button id="db_reinf_btn" onclick="buyReinforcements()" style="width:100%;box-sizing:border-box;padding:12px;background:rgba(200,255,90,0.12);border:2px solid #C8FF5A;border-radius:8px;color:#C8FF5A;font-family:'Courier New',monospace;font-weight:bold;text-align:left">
-        🎖️ Demander du renfort<br><span style="font-size:9px;font-weight:normal;color:rgba(255,255,255,0.5)">2 coéquipiers vous suivent — 100 Braves</span>
+      <button id="db_strike_btn" onclick="buyAirstrike()" style="width:100%;box-sizing:border-box;padding:12px;background:rgba(255,80,80,0.12);border:2px solid #FF5555;border-radius:8px;color:#FF9999;font-family:'Courier New',monospace;font-weight:bold;text-align:left">
+        ✈️ Frappe aérienne<br><span style="font-size:9px;font-weight:normal;color:rgba(255,255,255,0.5)">Sur la zone choisie — 100 Braves</span>
       </button>
     </div>
     <button onclick="quitMatch()" style="width:100%;box-sizing:border-box;padding:11px;margin-top:12px;background:rgba(255,80,80,0.15);border:2px solid #FF5555;border-radius:8px;color:#FF5555;font-family:'Courier New',monospace;font-weight:bold;letter-spacing:1px;margin-bottom:8px">QUITTER LA PARTIE</button>
@@ -1249,7 +1249,7 @@ function startAmbience(){
   let buf=_sfxBufs['amb_war'];if(!buf)return;
   try{
     _ambSrc=aCtx.createBufferSource();_ambSrc.buffer=buf;_ambSrc.loop=true;
-    _ambGain=aCtx.createGain();_ambGain.gain.value=0.12; // discret
+    _ambGain=aCtx.createGain();_ambGain.gain.value=0.22; // discret mais plus present
     _ambSrc.connect(_ambGain);_ambGain.connect(aCtx.destination);
     _ambSrc.start();_ambStarted=true;
   }catch(e){}
@@ -3531,21 +3531,23 @@ function hasLineOfSight(x1,y1,x2,y2){
 }
 let myBots=[];
 const BOT_NAMES=['Sokil','Vovk','Hrim','Buran','Yastrub','Shtorm','Orel','Zubr','Kobra','Rys'];
+const ALL_CLS=['fusil','medic','antitank','sniper','drone'];
+let _botLagPx=null,_botLagPy=null;
 function buyReinforcements(){
   let bal=_curBravesLive();
-  if(bal<100){showNotif('❌ Pas assez de Braves (besoin de 100)');return;}
+  if(bal<50){showNotif('❌ Pas assez de Braves (besoin de 50)');return;}
   if(myBots.length>0){showNotif('Renforts déjà sur le terrain !');return;}
-  _reconSpent+=100;dBravesLiveUpdate();
-  let availCls=['fusil','medic','antitank','sniper','drone'].filter(c=>c!==myCls);
+  _reconSpent+=50;dBravesLiveUpdate();
   for(let i=0;i<2;i++){
     let rndName=BOT_NAMES[~~(Math.random()*BOT_NAMES.length)]+'_'+(1+~~(Math.random()*99));
-    let rndCls=Math.random()<0.6?availCls[~~(Math.random()*availCls.length)]:myCls;
+    let rndCls=ALL_CLS[~~(Math.random()*ALL_CLS.length)];
+    let maxHp=CLS[rndCls]?.hp||100;
     myBots.push({
       id:myId+'_bot'+i,
       name:rndName,cls:rndCls,
       x:px+(Math.random()-0.5)*80,y:py+(Math.random()-0.5)*80,
-      dir:pdir,hp:100,maxHp:100,state:'follow',fireT:0,inVehSeat:null,
-      offAng:0,offDist:40,reoffT:0
+      dir:pdir,hp:maxHp,maxHp:maxHp,state:'follow',fireT:0,inVehSeat:null,
+      offAng:Math.PI*0.7*(i%2===0?1:-1),offDist:45
     });
   }
   showNotif('🎖️ 2 renforts '+(myRegiment?myRegiment:'')+' ont rejoint votre unité !');
@@ -3553,6 +3555,11 @@ function buyReinforcements(){
 }
 function updateBots(dt){
   if(!myBots.length)return;
+  // Point de suivi "retarde" (lissage exponentiel) - cree le petit temps de latence naturel
+  if(_botLagPx===null){_botLagPx=px;_botLagPy=py;}
+  _botLagPx+=(px-_botLagPx)*Math.min(1,dt*2.2);
+  _botLagPy+=(py-_botLagPy)*Math.min(1,dt*2.2);
+
   myBots.forEach((bot,bi)=>{
     if(bot.hp<=0)return;
     // Embarquement vehicule avec le joueur
@@ -3570,8 +3577,9 @@ function updateBots(dt){
     } else if(bot.inVehSeat!==null){
       if(bot._vehRef&&bot._vehRef.passengers)bot._vehRef.passengers=bot._vehRef.passengers.filter(id=>id!==bot.id);
       bot.inVehSeat=null;bot._vehRef=null;
-      bot.x=px+(Math.random()-0.5)*60;bot.y=py+(Math.random()-0.5)*60;
     }
+    let botWpn=CLS[bot.cls]?.wpn||'AK74M';
+    let botSpd=(CLS[bot.cls]?.spd||1)*70;
     // Chercher un ennemi proche AVEC ligne de vue degagee
     let nearestEnemy=null,nd=360;
     Object.values(remotes).forEach(r=>{
@@ -3579,51 +3587,49 @@ function updateBots(dt){
       let d=Math.hypot((r.x||0)-bot.x,(r.y||0)-bot.y);
       if(d<nd&&hasLineOfSight(bot.x,bot.y,r.x||0,r.y||0)){nd=d;nearestEnemy=r;}
     });
+    let mvx=0,mvy=0;
     if(nearestEnemy){
       bot.state='combat';
       bot.dir=Math.atan2(nearestEnemy.y-bot.y,nearestEnemy.x-bot.x);
-      // Continue a se rapprocher du joueur meme en combat (mouvement lateral/suivi reduit)
-      let pd=Math.hypot(px-bot.x,py-bot.y);
-      if(pd>140){
-        let ma=Math.atan2(py-bot.y,px-bot.x);
-        let spd=110*dt;
-        bot.x+=Math.cos(ma)*spd;bot.y+=Math.sin(ma)*spd;
+      let pd=Math.hypot(_botLagPx-bot.x,_botLagPy-bot.y);
+      if(pd>150){
+        let ma=Math.atan2(_botLagPy-bot.y,_botLagPx-bot.x);
+        mvx=Math.cos(ma)*botSpd*0.75;mvy=Math.sin(ma)*botSpd*0.75;
       } else {
-        // petit mouvement lateral pour ne pas rester statique
         let strafe=Date.now()/500+bi*3;
-        bot.x+=Math.cos(bot.dir+Math.PI/2)*Math.sin(strafe)*30*dt;
-        bot.y+=Math.sin(bot.dir+Math.PI/2)*Math.sin(strafe)*30*dt;
+        mvx=Math.cos(bot.dir+Math.PI/2)*Math.sin(strafe)*botSpd*0.4;
+        mvy=Math.sin(bot.dir+Math.PI/2)*Math.sin(strafe)*botSpd*0.4;
       }
       bot.fireT-=dt;
       if(bot.fireT<=0){
         bot.fireT=0.5+Math.random()*0.4;
-        let spread=(Math.random()-0.5)*0.32;
+        let spread=(Math.random()-0.5)*0.34;
         let ang=bot.dir+spread;
-        let bwpn=WPN['AK74M'];
+        let bwpn=WPN[botWpn]||WPN.AK74M;
         let bb={x:bot.x,y:bot.y,dx:Math.cos(ang)*bwpn.bSpd,dy:Math.sin(ang)*bwpn.bSpd,
-          team:myTeam,dmg:8,expl:0,r:bwpn.bSz,col:bwpn.col,life:320/bwpn.bSpd,owner:myId,fromBot:bot.id};
+          team:myTeam,dmg:~~(bwpn.dmg*0.85),expl:0,r:bwpn.bSz,col:bwpn.col,life:bwpn.rng/bwpn.bSpd,owner:myId,fromBot:bot.id};
         bullets.push(bb);
         chan&&chan.publish('shot',{...bb,id:myId});
         playSound&&playSound(bwpn.snd||'r',0.22);
       }
     } else {
       bot.state='follow';
-      bot.reoffT-=dt;
-      if(bot.reoffT<=0){
-        bot.reoffT=1.2+Math.random()*2.0;
-        bot.offAng=Math.PI*0.55+Math.random()*Math.PI*0.9;
-        bot.offDist=32+Math.random()*40;
-      }
-      let baseAng=pdir+Math.PI+bot.offAng*(bi%2===0?1:-1);
-      let tx=px+Math.cos(baseAng)*bot.offDist,ty=py+Math.sin(baseAng)*bot.offDist;
+      bot.offAng+=(Math.random()-0.5)*dt*0.4;
+      bot.offDist=Math.max(30,Math.min(65,bot.offDist+(Math.random()-0.5)*dt*10));
+      let baseAng=pdir+Math.PI+bot.offAng;
+      let tx=_botLagPx+Math.cos(baseAng)*bot.offDist,ty=_botLagPy+Math.sin(baseAng)*bot.offDist;
       let dd=Math.hypot(tx-bot.x,ty-bot.y);
-      if(dd>12){
-        let wander=Math.sin(Date.now()/700+bi*5)*0.25;
-        bot.dir=Math.atan2(ty-bot.y,tx-bot.x)+wander;
-        let spd=(160+Math.random()*50)*dt;
-        bot.x+=Math.cos(bot.dir)*Math.min(spd,dd);
-        bot.y+=Math.sin(bot.dir)*Math.min(spd,dd);
+      if(dd>10){
+        bot.dir=Math.atan2(ty-bot.y,tx-bot.x);
+        let spd=Math.min(botSpd,dd/dt);
+        mvx=Math.cos(bot.dir)*spd;mvy=Math.sin(bot.dir)*spd;
       }
+    }
+    // Deplacement avec collision batiments (glissement par axe, comme le joueur)
+    if(mvx||mvy){
+      let nx=bot.x+mvx*dt,ny=bot.y+mvy*dt;
+      if(!isBlocked(nx,bot.y))bot.x=Math.max(8,Math.min(WW-8,nx));
+      if(!isBlocked(bot.x,ny))bot.y=Math.max(8,Math.min(WH-8,ny));
     }
   });
 }
@@ -3633,12 +3639,12 @@ let reconTarget=null;
 function buyRecon(){
   if(reconActive){showNotif('Déjà actif !');return;}
   let bal=_curBravesLive();
-  if(bal<50){showNotif('❌ Pas assez de Braves (besoin de 50)');return;}
+  if(bal<75){showNotif('❌ Pas assez de Braves (besoin de 75)');return;}
   startTargeting('recon');
 }
 function buyAirstrike(){
   let bal=_curBravesLive();
-  if(bal<150){showNotif('❌ Pas assez de Braves (besoin de 150)');return;}
+  if(bal<100){showNotif('❌ Pas assez de Braves (besoin de 100)');return;}
   startTargeting('strike');
 }
 function startTargeting(mode){
@@ -3661,12 +3667,12 @@ function confirmTarget(){
   cancelTargeting();
   toggleMap();
   if(mode==='recon'){
-    _reconSpent+=50;dBravesLiveUpdate();
+    _reconSpent+=75;dBravesLiveUpdate();
     reconActive=true;reconTarget={x:tx,y:ty,r:400};
     showNotif('🛸 Drone de reconnaissance en approche...');
     setTimeout(()=>{reconActive=false;reconTarget=null;showNotif('Drone de reco rentré — signal perdu');},15000);
   } else if(mode==='strike'){
-    _strikeSpent+=150;dBravesLiveUpdate();
+    _strikeSpent+=100;dBravesLiveUpdate();
     let startX=myTeam==='UA'?WW+250:-250,startY=myTeam==='UA'?WH+250:-250;
     let dx=tx-startX,dy=ty-startY,dist=Math.hypot(dx,dy)||1;
     let ux=dx/dist,uy=dy/dist;
