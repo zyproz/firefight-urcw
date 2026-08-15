@@ -6,6 +6,8 @@ from clan_logic import create_clan, search_clans, join_clan, leave_clan, invite_
 
 app = Flask(__name__, static_folder='.')
 
+MAP_FILE = os.environ.get('MAP_FILE', 'index.html')
+
 @app.after_request
 def add_cors_headers(response):
     response.headers['Access-Control-Allow-Origin'] = '*'
@@ -15,7 +17,7 @@ def add_cors_headers(response):
 
 @app.route('/')
 def index():
-    return send_from_directory('.', 'index.html')
+    return send_from_directory('.', MAP_FILE)
 
 @app.route('/ping')
 def ping():
