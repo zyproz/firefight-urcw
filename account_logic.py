@@ -74,17 +74,17 @@ def register_player(pseudo: str, password: str):
 
     tag = _generate_unique_tag(pseudo)
     pw_hash = hash_password(password)
+    token = secrets.token_urlsafe(24)
 
     r = requests.post(
         f"{SUPABASE_URL}/rest/v1/players",
         headers={**HEADERS, "Prefer": "return=representation"},
-        json={"pseudo": pseudo, "tag": tag, "password_hash": pw_hash},
+        json={"pseudo": pseudo, "tag": tag, "password_hash": pw_hash, "session_token": token},
         timeout=8,
     )
     if r.status_code not in (200, 201):
         return {"ok": False, "error": "Erreur serveur, reessaie"}
 
-    token = secrets.token_urlsafe(24)
     return {"ok": True, "pseudo": pseudo, "tag": tag, "token": token}
 
 def login_player(pseudo: str, tag: str, password: str):
@@ -100,7 +100,27 @@ def login_player(pseudo: str, tag: str, password: str):
         return {"ok": False, "error": "Pseudo, tag ou mot de passe incorrect"}
 
     token = secrets.token_urlsafe(24)
+    requests.patch(
+        f"{SUPABASE_URL}/rest/v1/players",
+        headers=HEADERS,
+        params={"pseudo": f"eq.{pseudo}", "tag": f"eq.{tag}"},
+        json={"session_token": token},
+        timeout=8,
+    )
     return {"ok": True, "pseudo": pseudo, "tag": tag, "token": token}
+
+def verify_token(pseudo: str, tag: str, token: str) -> bool:
+    if not (pseudo and tag and token):
+        return False
+    r = requests.get(
+        f"{SUPABASE_URL}/rest/v1/players",
+        headers=HEADERS,
+        params={"pseudo": f"eq.{pseudo}", "tag": f"eq.{tag}", "select": "session_token"},
+        timeout=8,
+    )
+    r.raise_for_status()
+    rows = r.json()
+    return bool(rows) and hmac.compare_digest(rows[0].get("session_token") or "", token)
 
 
 # ---------- Exemple des routes Flask a ajouter (adapte selon la structure reelle de server.py) ----------
