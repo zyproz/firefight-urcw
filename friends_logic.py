@@ -1,9 +1,5 @@
 """
-Logique du systeme d'amis WarEast.io — v3.7
-=============================================
-S'appuie sur account_logic.verify_token pour s'assurer que chaque action
-est bien faite par le compte connecte, pas par n'importe qui qui devine
-un pseudo#tag.
+Logique du systeme d'amis WarEast.io — v4.1 (pseudo seul, plus de tag)
 """
 
 import requests
@@ -17,27 +13,26 @@ def search_players(query: str, exclude_pseudo: str = "", limit: int = 10):
     r = requests.get(
         f"{SUPABASE_URL}/rest/v1/players",
         headers=HEADERS,
-        params={"pseudo": f"ilike.*{query}*", "select": "pseudo,tag", "limit": str(limit)},
+        params={"pseudo": f"ilike.*{query}*", "select": "pseudo", "limit": str(limit)},
         timeout=8,
     )
     r.raise_for_status()
-    results = [row for row in r.json() if row["pseudo"] != exclude_pseudo]
+    results = [row for row in r.json() if row["pseudo"].lower() != exclude_pseudo.lower()]
     return {"ok": True, "results": results}
 
 
-def send_friend_request(my_pseudo, my_tag, my_token, target_pseudo, target_tag):
-    if not verify_token(my_pseudo, my_tag, my_token):
+def send_friend_request(my_pseudo, my_token, target_pseudo):
+    if not verify_token(my_pseudo, my_token):
         return {"ok": False, "error": "Session invalide, reconnecte-toi"}
-    if my_pseudo == target_pseudo and my_tag == target_tag:
+    if my_pseudo.lower() == target_pseudo.lower():
         return {"ok": False, "error": "Impossible de s'ajouter soi-meme"}
 
-    # Verifier qu'il n'existe pas deja une relation (dans un sens ou l'autre)
     r = requests.get(
         f"{SUPABASE_URL}/rest/v1/friendships",
         headers=HEADERS,
         params={
-            "or": f"(and(requester_pseudo.eq.{my_pseudo},requester_tag.eq.{my_tag},addressee_pseudo.eq.{target_pseudo},addressee_tag.eq.{target_tag}),"
-                  f"and(requester_pseudo.eq.{target_pseudo},requester_tag.eq.{target_tag},addressee_pseudo.eq.{my_pseudo},addressee_tag.eq.{my_tag}))",
+            "or": f"(and(requester_pseudo.eq.{my_pseudo},addressee_pseudo.eq.{target_pseudo}),"
+                  f"and(requester_pseudo.eq.{target_pseudo},addressee_pseudo.eq.{my_pseudo}))",
             "select": "id,status",
         },
         timeout=8,
@@ -50,8 +45,8 @@ def send_friend_request(my_pseudo, my_tag, my_token, target_pseudo, target_tag):
         f"{SUPABASE_URL}/rest/v1/friendships",
         headers={**HEADERS, "Prefer": "return=representation"},
         json={
-            "requester_pseudo": my_pseudo, "requester_tag": my_tag,
-            "addressee_pseudo": target_pseudo, "addressee_tag": target_tag,
+            "requester_pseudo": my_pseudo, "requester_tag": "0000",
+            "addressee_pseudo": target_pseudo, "addressee_tag": "0000",
             "status": "pending",
         },
         timeout=8,
@@ -61,15 +56,15 @@ def send_friend_request(my_pseudo, my_tag, my_token, target_pseudo, target_tag):
     return {"ok": True}
 
 
-def respond_friend_request(my_pseudo, my_tag, my_token, request_id, accept: bool):
-    if not verify_token(my_pseudo, my_tag, my_token):
+def respond_friend_request(my_pseudo, my_token, request_id, accept: bool):
+    if not verify_token(my_pseudo, my_token):
         return {"ok": False, "error": "Session invalide, reconnecte-toi"}
 
     if accept:
         r = requests.patch(
             f"{SUPABASE_URL}/rest/v1/friendships",
             headers=HEADERS,
-            params={"id": f"eq.{request_id}", "addressee_pseudo": f"eq.{my_pseudo}", "addressee_tag": f"eq.{my_tag}"},
+            params={"id": f"eq.{request_id}", "addressee_pseudo": f"eq.{my_pseudo}"},
             json={"status": "accepted"},
             timeout=8,
         )
@@ -77,7 +72,7 @@ def respond_friend_request(my_pseudo, my_tag, my_token, request_id, accept: bool
         r = requests.delete(
             f"{SUPABASE_URL}/rest/v1/friendships",
             headers=HEADERS,
-            params={"id": f"eq.{request_id}", "addressee_pseudo": f"eq.{my_pseudo}", "addressee_tag": f"eq.{my_tag}"},
+            params={"id": f"eq.{request_id}", "addressee_pseudo": f"eq.{my_pseudo}"},
             timeout=8,
         )
     if r.status_code not in (200, 204):
@@ -85,16 +80,15 @@ def respond_friend_request(my_pseudo, my_tag, my_token, request_id, accept: bool
     return {"ok": True}
 
 
-def list_friends(my_pseudo, my_tag, my_token):
-    if not verify_token(my_pseudo, my_tag, my_token):
+def list_friends(my_pseudo, my_token):
+    if not verify_token(my_pseudo, my_token):
         return {"ok": False, "error": "Session invalide, reconnecte-toi"}
 
     r = requests.get(
         f"{SUPABASE_URL}/rest/v1/friendships",
         headers=HEADERS,
         params={
-            "or": f"(and(requester_pseudo.eq.{my_pseudo},requester_tag.eq.{my_tag}),"
-                  f"and(addressee_pseudo.eq.{my_pseudo},addressee_tag.eq.{my_tag}))",
+            "or": f"(requester_pseudo.eq.{my_pseudo},addressee_pseudo.eq.{my_pseudo})",
             "select": "*",
         },
         timeout=8,
@@ -104,12 +98,9 @@ def list_friends(my_pseudo, my_tag, my_token):
 
     friends, incoming, outgoing = [], [], []
     for row in rows:
-        is_requester = row["requester_pseudo"] == my_pseudo and row["requester_tag"] == my_tag
-        other = (
-            {"pseudo": row["addressee_pseudo"], "tag": row["addressee_tag"]}
-            if is_requester else
-            {"pseudo": row["requester_pseudo"], "tag": row["requester_tag"]}
-        )
+        is_requester = row["requester_pseudo"] == my_pseudo
+        other_pseudo = row["addressee_pseudo"] if is_requester else row["requester_pseudo"]
+        other = {"pseudo": other_pseudo}
         if row["status"] == "accepted":
             friends.append(other)
         elif is_requester:

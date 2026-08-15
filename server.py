@@ -21,7 +21,7 @@ def index():
 def ping():
     return jsonify({'status': 'ok'})
 
-# ---------- Comptes joueurs (v3.5) ----------
+# ---------- Comptes joueurs (v4.1 : pseudo + mot de passe uniquement) ----------
 
 @app.route('/api/register', methods=['POST'])
 def api_register():
@@ -32,10 +32,10 @@ def api_register():
 @app.route('/api/login', methods=['POST'])
 def api_login():
     data = request.get_json(force=True, silent=True) or {}
-    result = login_player(data.get('pseudo', ''), data.get('tag', ''), data.get('password', ''))
+    result = login_player(data.get('pseudo', ''), data.get('password', ''))
     return jsonify(result), (200 if result.get('ok') else 401)
 
-# ---------- Amis (v3.7) ----------
+# ---------- Amis ----------
 
 @app.route('/api/friends/search', methods=['GET'])
 def api_friends_search():
@@ -45,34 +45,26 @@ def api_friends_search():
 @app.route('/api/friends/request', methods=['POST'])
 def api_friends_request():
     d = request.get_json(force=True, silent=True) or {}
-    result = send_friend_request(
-        d.get('my_pseudo', ''), d.get('my_tag', ''), d.get('my_token', ''),
-        d.get('target_pseudo', ''), d.get('target_tag', ''),
-    )
+    result = send_friend_request(d.get('my_pseudo', ''), d.get('my_token', ''), d.get('target_pseudo', ''))
     return jsonify(result), (200 if result.get('ok') else 400)
 
 @app.route('/api/friends/respond', methods=['POST'])
 def api_friends_respond():
     d = request.get_json(force=True, silent=True) or {}
-    result = respond_friend_request(
-        d.get('my_pseudo', ''), d.get('my_tag', ''), d.get('my_token', ''),
-        d.get('request_id', ''), bool(d.get('accept', False)),
-    )
+    result = respond_friend_request(d.get('my_pseudo', ''), d.get('my_token', ''), d.get('request_id', ''), bool(d.get('accept', False)))
     return jsonify(result), (200 if result.get('ok') else 400)
 
 @app.route('/api/friends/list', methods=['GET'])
 def api_friends_list():
-    result = list_friends(
-        request.args.get('pseudo', ''), request.args.get('tag', ''), request.args.get('token', ''),
-    )
+    result = list_friends(request.args.get('pseudo', ''), request.args.get('token', ''))
     return jsonify(result), (200 if result.get('ok') else 400)
 
-# ---------- Clans (v4.0) ----------
+# ---------- Clans ----------
 
 @app.route('/api/clan/create', methods=['POST'])
 def api_clan_create():
     d = request.get_json(force=True, silent=True) or {}
-    result = create_clan(d.get('my_pseudo',''), d.get('my_tag',''), d.get('my_token',''), d.get('name',''), d.get('tag',''))
+    result = create_clan(d.get('my_pseudo',''), d.get('my_token',''), d.get('name',''), d.get('tag',''))
     return jsonify(result), (200 if result.get('ok') else 400)
 
 @app.route('/api/clan/search', methods=['GET'])
@@ -83,30 +75,30 @@ def api_clan_search():
 @app.route('/api/clan/join', methods=['POST'])
 def api_clan_join():
     d = request.get_json(force=True, silent=True) or {}
-    result = join_clan(d.get('my_pseudo',''), d.get('my_tag',''), d.get('my_token',''), d.get('clan_id'))
+    result = join_clan(d.get('my_pseudo',''), d.get('my_token',''), d.get('clan_id'))
     return jsonify(result), (200 if result.get('ok') else 400)
 
 @app.route('/api/clan/leave', methods=['POST'])
 def api_clan_leave():
     d = request.get_json(force=True, silent=True) or {}
-    result = leave_clan(d.get('my_pseudo',''), d.get('my_tag',''), d.get('my_token',''))
+    result = leave_clan(d.get('my_pseudo',''), d.get('my_token',''))
     return jsonify(result), (200 if result.get('ok') else 400)
 
 @app.route('/api/clan/invite', methods=['POST'])
 def api_clan_invite():
     d = request.get_json(force=True, silent=True) or {}
-    result = invite_to_clan(d.get('my_pseudo',''), d.get('my_tag',''), d.get('my_token',''), d.get('target_pseudo',''), d.get('target_tag',''))
+    result = invite_to_clan(d.get('my_pseudo',''), d.get('my_token',''), d.get('target_pseudo',''))
     return jsonify(result), (200 if result.get('ok') else 400)
 
 @app.route('/api/clan/respond', methods=['POST'])
 def api_clan_respond():
     d = request.get_json(force=True, silent=True) or {}
-    result = respond_clan_invite(d.get('my_pseudo',''), d.get('my_tag',''), d.get('my_token',''), d.get('invite_id'), bool(d.get('accept', False)))
+    result = respond_clan_invite(d.get('my_pseudo',''), d.get('my_token',''), d.get('invite_id'), bool(d.get('accept', False)))
     return jsonify(result), (200 if result.get('ok') else 400)
 
 @app.route('/api/clan/mine', methods=['GET'])
 def api_clan_mine():
-    result = get_my_clan(request.args.get('pseudo',''), request.args.get('tag',''), request.args.get('token',''))
+    result = get_my_clan(request.args.get('pseudo',''), request.args.get('token',''))
     return jsonify(result), (200 if result.get('ok') else 400)
 
 # ---------- Fichiers statiques (inchangé, toujours en dernier) ----------
