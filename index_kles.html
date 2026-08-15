@@ -2260,7 +2260,7 @@ function drawTerrain(){
       }
     }
   }
-  drawTrenchesVisual();
+  _initTrenchMask(); // charge le masque de collision (invisible, aucun rendu visuel)
   KLES_WRECKS.forEach(v=>{
     let sx=v.x-camX,sy=v.y-camY;
     if(sx<-60||sx>W+60||sy<-60||sy>H+60)return;
@@ -2269,29 +2269,6 @@ function drawTerrain(){
     ctx.fillText('🔥',0,0);
     ctx.restore();
   });
-}
-// Rendu visuel de la tranchee (terre remuee sombre) a partir du masque de collision
-let _trenchCanvas=null;
-function drawTrenchesVisual(){
-  _initTrenchMask();
-  if(!_trenchCanvas&&IMG.trenchmask&&IMG.trenchmask.complete){
-    _trenchCanvas=document.createElement('canvas');
-    _trenchCanvas.width=1024;_trenchCanvas.height=1024;
-    let tctx=_trenchCanvas.getContext('2d');
-    tctx.drawImage(IMG.trenchmask,0,0);
-    let id=tctx.getImageData(0,0,1024,1024);
-    for(let i=0;i<id.data.length;i+=4){
-      if(id.data[i]>128){
-        id.data[i]=61;id.data[i+1]=45;id.data[i+2]=28;id.data[i+3]=235;
-      }else{id.data[i+3]=0;}
-    }
-    tctx.putImageData(id,0,0);
-  }
-  if(_trenchCanvas){
-    ctx.imageSmoothingEnabled=false;
-    ctx.drawImage(_trenchCanvas,camX/4,camY/4,W/4,H/4,0,0,W,H);
-    ctx.imageSmoothingEnabled=true;
-  }
 }
 
 // ── SOLDIER SPRITE RENDERER ───────────────────────────────────────

@@ -1,6 +1,6 @@
 from flask import Flask, send_from_directory, jsonify, request
 import os
-from account_logic import register_player, login_player
+from account_logic import register_player, login_player, heartbeat
 from friends_logic import search_players, send_friend_request, respond_friend_request, list_friends
 from clan_logic import create_clan, search_clans, join_clan, leave_clan, invite_to_clan, respond_clan_invite, get_my_clan
 
@@ -36,6 +36,12 @@ def api_login():
     data = request.get_json(force=True, silent=True) or {}
     result = login_player(data.get('pseudo', ''), data.get('password', ''))
     return jsonify(result), (200 if result.get('ok') else 401)
+
+@app.route('/api/heartbeat', methods=['POST'])
+def api_heartbeat():
+    data = request.get_json(force=True, silent=True) or {}
+    result = heartbeat(data.get('pseudo', ''), data.get('token', ''))
+    return jsonify(result), (200 if result.get('ok') else 400)
 
 # ---------- Amis ----------
 

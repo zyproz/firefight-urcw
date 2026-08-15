@@ -101,3 +101,36 @@ def verify_token(pseudo: str, token: str) -> bool:
     r.raise_for_status()
     rows = r.json()
     return bool(rows) and hmac.compare_digest(rows[0].get("session_token") or "", token)
+
+def heartbeat(pseudo: str, token: str):
+    if not verify_token(pseudo, token):
+        return {"ok": False, "error": "Session invalide, reconnecte-toi"}
+    requests.patch(
+        f"{SUPABASE_URL}/rest/v1/players",
+        headers=HEADERS,
+        params={"pseudo": f"eq.{pseudo}"},
+        json={"last_active": "now()"},
+        timeout=8,
+    )
+    return {"ok": True}
+
+def get_online_status(pseudos):
+    if not pseudos:
+        return {}
+    r = requests.get(
+        f"{SUPABASE_URL}/rest/v1/players",
+        headers=HEADERS,
+        params={"pseudo": f"in.({','.join(pseudos)})", "select": "pseudo,last_active"},
+        timeout=8,
+    )
+    r.raise_for_status()
+    import datetime
+    now = datetime.datetime.now(datetime.timezone.utc)
+    result = {}
+    for row in r.json():
+        try:
+            la = datetime.datetime.fromisoformat(row["last_active"].replace("Z", "+00:00"))
+            result[row["pseudo"]] = (now - la).total_seconds() < 25
+        except Exception:
+            result[row["pseudo"]] = False
+    return result

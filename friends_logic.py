@@ -3,7 +3,7 @@ Logique du systeme d'amis WarEast.io — v4.1 (pseudo seul, plus de tag)
 """
 
 import requests
-from account_logic import SUPABASE_URL, HEADERS, verify_token
+from account_logic import SUPABASE_URL, HEADERS, verify_token, get_online_status
 
 
 def search_players(query: str, exclude_pseudo: str = "", limit: int = 10):
@@ -108,5 +108,9 @@ def list_friends(my_pseudo, my_token):
         else:
             other["request_id"] = row["id"]
             incoming.append(other)
+
+    online = get_online_status([f["pseudo"] for f in friends])
+    for f in friends:
+        f["online"] = online.get(f["pseudo"], False)
 
     return {"ok": True, "friends": friends, "incoming": incoming, "outgoing": outgoing}
