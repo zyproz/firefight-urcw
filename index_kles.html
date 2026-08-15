@@ -2755,18 +2755,22 @@ function drawBulletsFn(dt){
       }
       if(_bldHit){bullets.splice(i,1);continue;}
     }
-    // Hit check — parapet de tranchee : bloque un tir venant de l'exterieur des qu'il
-    // atteint la zone protegee, mais laisse passer les tirs provenant deja de l'interieur
-    // (combat interne a la tranchee) ou allant vers l'exterieur.
-    if(!b.expl&&!b.fromTrench&&isInTrench(b.x,b.y)){
-      let _ibd=Math.atan2(b.dy,b.dx);
-      for(let _si=0;_si<2;_si++){
-        let _sa=_ibd+Math.PI+(Math.random()-.5)*0.8;
-        particles.push({x:b.x,y:b.y,
-          vx:Math.cos(_sa)*(20+Math.random()*30),vy:Math.sin(_sa)*(20+Math.random()*30),
-          r:1+Math.random()*1.5,life:0.18,maxLife:0.18,col:'#8B6F47',col2:'#4A3520'});
+    // Hit check — parapet de tranchee : bloque un tir qui tente de franchir la limite
+    // exterieur<->interieur, dans un sens comme dans l'autre. Ainsi le combat de tranchee
+    // n'est possible qu'entre deux joueurs se trouvant TOUS LES DEUX a l'interieur.
+    if(!b.expl){
+      let _nowInTrench=isInTrench(b.x,b.y);
+      let _trenchBlocked=b.fromTrench?!_nowInTrench:_nowInTrench;
+      if(_trenchBlocked){
+        let _ibd=Math.atan2(b.dy,b.dx);
+        for(let _si=0;_si<2;_si++){
+          let _sa=_ibd+Math.PI+(Math.random()-.5)*0.8;
+          particles.push({x:b.x,y:b.y,
+            vx:Math.cos(_sa)*(20+Math.random()*30),vy:Math.sin(_sa)*(20+Math.random()*30),
+            r:1+Math.random()*1.5,life:0.18,maxLife:0.18,col:'#8B6F47',col2:'#4A3520'});
+        }
+        bullets.splice(i,1);continue;
       }
-      bullets.splice(i,1);continue;
     }
     // Hit check — véhicules (cover + impact)
     if(!b.expl){ // Pas les RPG (déjà gérés)

@@ -70,7 +70,7 @@ def login_player(pseudo: str, password: str):
     r = requests.get(
         f"{SUPABASE_URL}/rest/v1/players",
         headers=HEADERS,
-        params={"pseudo": f"ilike.{pseudo}", "select": "pseudo,password_hash"},
+        params={"pseudo": f"ilike.{pseudo}", "select": "pseudo,password_hash,braves,is_admin"},
         timeout=8,
     )
     r.raise_for_status()
@@ -87,7 +87,61 @@ def login_player(pseudo: str, password: str):
         json={"session_token": token},
         timeout=8,
     )
-    return {"ok": True, "pseudo": real_pseudo, "token": token}
+    return {"ok": True, "pseudo": real_pseudo, "token": token,
+            "braves": rows[0].get("braves") or 0, "isAdmin": bool(rows[0].get("is_admin"))}
+
+def sync_braves(pseudo: str, token: str, amount: int):
+    if not verify_token(pseudo, token):
+        return {"ok": False, "error": "Session invalide, reconnecte-toi"}
+    try:
+        amount = max(0, int(amount))
+    except (TypeError, ValueError):
+        return {"ok": False, "error": "Montant invalide"}
+    requests.patch(
+        f"{SUPABASE_URL}/rest/v1/players",
+        headers=HEADERS,
+        params={"pseudo": f"eq.{pseudo}"},
+        json={"braves": amount},
+        timeout=8,
+    )
+    return {"ok": True, "braves": amount}
+
+def is_admin_account(pseudo: str, token: str) -> bool:
+    if not verify_token(pseudo, token):
+        return False
+    r = requests.get(
+        f"{SUPABASE_URL}/rest/v1/players",
+        headers=HEADERS,
+        params={"pseudo": f"eq.{pseudo}", "select": "is_admin"},
+        timeout=8,
+    )
+    r.raise_for_status()
+    rows = r.json()
+    return bool(rows) and bool(rows[0].get("is_admin"))
+
+def admin_add_braves(admin_pseudo: str, admin_token: str, target_pseudo: str, amount: int):
+    if not is_admin_account(admin_pseudo, admin_token):
+        return {"ok": False, "error": "Non autorise"}
+    r = requests.get(
+        f"{SUPABASE_URL}/rest/v1/players",
+        headers=HEADERS,
+        params={"pseudo": f"ilike.{target_pseudo}", "select": "pseudo,braves"},
+        timeout=8,
+    )
+    r.raise_for_status()
+    rows = r.json()
+    if not rows:
+        return {"ok": False, "error": "Joueur introuvable"}
+    real_pseudo = rows[0]["pseudo"]
+    newval = max(0, (rows[0].get("braves") or 0) + int(amount))
+    requests.patch(
+        f"{SUPABASE_URL}/rest/v1/players",
+        headers=HEADERS,
+        params={"pseudo": f"eq.{real_pseudo}"},
+        json={"braves": newval},
+        timeout=8,
+    )
+    return {"ok": True, "pseudo": real_pseudo, "braves": newval}
 
 def verify_token(pseudo: str, token: str) -> bool:
     if not (pseudo and token):

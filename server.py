@@ -1,8 +1,9 @@
 from flask import Flask, send_from_directory, jsonify, request
 import os
-from account_logic import register_player, login_player, heartbeat
+from account_logic import register_player, login_player, heartbeat, sync_braves
 from friends_logic import search_players, send_friend_request, respond_friend_request, list_friends
 from clan_logic import create_clan, search_clans, join_clan, leave_clan, invite_to_clan, respond_clan_invite, get_my_clan
+from chat_logic import send_message, get_messages
 
 app = Flask(__name__, static_folder='.')
 
@@ -41,6 +42,25 @@ def api_login():
 def api_heartbeat():
     data = request.get_json(force=True, silent=True) or {}
     result = heartbeat(data.get('pseudo', ''), data.get('token', ''))
+    return jsonify(result), (200 if result.get('ok') else 400)
+
+@app.route('/api/braves/sync', methods=['POST'])
+def api_braves_sync():
+    data = request.get_json(force=True, silent=True) or {}
+    result = sync_braves(data.get('pseudo', ''), data.get('token', ''), data.get('amount', 0))
+    return jsonify(result), (200 if result.get('ok') else 400)
+
+# ---------- Chat (v5.0) ----------
+
+@app.route('/api/chat/send', methods=['POST'])
+def api_chat_send():
+    d = request.get_json(force=True, silent=True) or {}
+    result = send_message(d.get('pseudo', ''), d.get('token', ''), d.get('channel', 'global'), d.get('message', ''))
+    return jsonify(result), (200 if result.get('ok') else 400)
+
+@app.route('/api/chat/messages', methods=['GET'])
+def api_chat_messages():
+    result = get_messages(request.args.get('channel', 'global'), request.args.get('since', 0))
     return jsonify(result), (200 if result.get('ok') else 400)
 
 # ---------- Amis ----------
