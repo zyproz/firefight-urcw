@@ -153,6 +153,14 @@ body{background:#0A0D08;overflow:hidden;font-family:'Courier New',monospace;user
   background:rgba(0,0,0,.75);border:1px solid rgba(255,255,255,.2);color:#FFD700;
   padding:4px 12px;border-radius:12px;font-size:10px;display:none;z-index:55;
   font-family:'Courier New',monospace}
+/* v5.4 */
+#htl{display:none!important}
+#micBtn,#vcPerm,#hspk{display:none!important}
+#wtBar{position:fixed;top:8px;left:8px;z-index:60;display:flex;gap:4px;font-family:'Courier New',monospace}
+#wtBar button{padding:7px 13px;background:rgba(0,0,0,0.62);border:1px solid rgba(255,255,255,0.22);
+ border-radius:7px;color:rgba(255,255,255,0.75);font-family:'Courier New',monospace;font-size:10px;
+ letter-spacing:1.5px;font-weight:bold;cursor:pointer}
+#wtBar button.on{background:rgba(200,255,90,0.16);border-color:#C8FF5A;color:#C8FF5A}
 </style>
 </head>
 <body>
@@ -342,6 +350,10 @@ body{background:#0A0D08;overflow:hidden;font-family:'Courier New',monospace;user
   <button class="spawn" id="spawnBtn" style="display:none" onclick="doSpawn()">▶ SPAWN</button>
 </div>
 
+<div id="wtBar">
+  <button id="wtb_players" class="on" onclick="wtOpen('players')">JOUEURS</button>
+  <button id="wtb_renfort" onclick="wtOpen('renfort')">RENFORT</button>
+</div>
 <div id="hud">
   <div id="htl">
     <div class="hb" id="hhp">❤️ 100</div>
@@ -2178,7 +2190,7 @@ function netConnect(){
       myBots.forEach(bot=>{
         socket.emit('pos',{id:bot.id,name:bot.name||'Renfort',x:bot.x,y:bot.y,dir:bot.dir,
           team:myTeam,cls:bot.cls||myCls,hp:bot.hp,dead:bot.hp<=0,inVeh:bot.inVehSeat,
-          moving:bot.state==='follow',wfr:0,sfr:0,reg:myRegiment,tape:myTape,isBot:true,ownerId:myId});
+          moving:bot.state==='follow',wfr:bot.walkFr||0,sfr:bot.shootFr||0,reg:myRegiment,tape:myTape,isBot:true,ownerId:myId});
       });
     },80);
     socket.emit('pos',{id:myId,name:myName,x:px,y:py,dir:pdir,team:myTeam,cls:myCls,hp:php,dead:false,reg:myRegiment,tape:myTape});
@@ -2451,6 +2463,31 @@ function drawSoldierSprite(sx,sy,dir,team,cls,isAlly,name,hp,isMe,moving,isShoot
   }
 }
 
+// ── v5.4 CHAMP DE VISION ────────────────────────────────────────
+// Un ennemi n'est visible que s'il est dans le cone de vue ET a portee
+// ET sans obstacle. Tres pres, on le percoit meme hors du cone.
+const FOV_DEMI_ANGLE=52*Math.PI/180;   // cone total ~104 degres
+const FOV_PORTEE=880;                  // distance de vue max
+const FOV_PERCEPTION=90;               // rayon de perception a 360 degres
+function canSeeEnemy(ex,ey){
+  if(pDead)return true;                // en spectateur/mort : on voit tout
+  if(droneActive)return true;          // vue drone : pas de cone
+  let dx=ex-px,dy=ey-py;
+  let dist=Math.hypot(dx,dy);
+  if(dist>FOV_PORTEE)return false;
+  if(dist<FOV_PERCEPTION)return true;
+  let ang=Math.atan2(dy,dx);
+  let ecart=Math.abs(((ang-pdir+Math.PI*3)%(Math.PI*2))-Math.PI);
+  if(ecart>FOV_DEMI_ANGLE)return false;
+  return hasLineOfSight(px,py,ex,ey);
+}
+function wtOpen(tab){
+  document.getElementById('wtb_players').classList.toggle('on',tab==='players');
+  document.getElementById('wtb_renfort').classList.toggle('on',tab==='renfort');
+  let db=document.getElementById('dashboard');
+  if(db&&db.style.display==='none')toggleDashboard();
+  try{dbShowTab(tab);}catch(e){}
+}
 function drawPlayers(){
   // Remote dead bodies
   Object.values(remotes).forEach(r=>{
@@ -2475,6 +2512,7 @@ function drawPlayers(){
   // Remote alive
   Object.values(remotes).forEach(r=>{
     if(r.dead||r.inVeh)return;
+    if(r.team!==myTeam&&!canSeeEnemy(r.x,r.y))return; // v5.4 champ de vision
     let sx=r.x-camX,sy=r.y-camY;
     if(Math.abs(sx)>W+50||Math.abs(sy)>H+50)return;
     drawSoldierSprite(sx,sy,r.dir||0,r.team,r.cls,r.team===myTeam,r.name||'?',r.hp||100,false,
@@ -2492,7 +2530,7 @@ function drawPlayers(){
     let sx=bot.x-camX,sy=bot.y-camY;
     if(Math.abs(sx)>W+50||Math.abs(sy)>H+50)return;
     drawSoldierSprite(sx,sy,bot.dir,myTeam,bot.cls||myCls,true,bot.name||'Renfort',bot.hp,false,
-      bot.state==='follow',bot.state==='combat',false,false,0,0,0,myTape,myRegiment);
+      bot.state==='follow',bot.state==='combat',false,false,bot.walkFr||0,bot.shootFr||0,0,myTape,myRegiment);
   });
   // Local drone (drawn by drawDroneFPV)
   // Remote drones
@@ -3108,7 +3146,7 @@ let _voiceStream=null,_voicePeers={},_voiceChan=null;
 let _speakerName=null,_speakerTimer=0,_voiceActive=false;
 let _myAudioLevel=0,_audioAnalyser=null;
 
-function requestMicPermission(){
+function requestMicPermission(){ return; /* v5.4 vocal retire */
   if(_voiceActive){vcDeactivate();return;}
   let el=document.getElementById('vcPerm');
   if(el)el.style.display='flex';
@@ -3169,7 +3207,7 @@ async function initVoiceChat(){
     }
     _poll();
     // Socket.IO signaling (remplace Ably)
-    socket.emit('voice_join_team',{team:myTeam});
+    /*v5.4*/(()=>{})||socket.emit('voice_join_team',{team:myTeam});
     _voiceChan=socket;
     socket.on('join',async d=>{
       if(!d||d.id===myId||d.team!==myTeam)return;
@@ -3327,6 +3365,18 @@ function buyReinforcements(){
 }
 function updateBots(dt){
   if(!myBots.length)return;
+  // v5.4 : chaque bot a ses propres compteurs d'animation, comme un joueur
+  myBots.forEach(b=>{
+    if(b.walkT===undefined){b.walkT=0;b.walkFr=~~(Math.random()*12);b.shootT=0;b.shootFr=0;}
+    if(b.hp>0&&b.state==='follow'){
+      b.walkT+=dt;
+      if(b.walkT>1/WALK_FPS){b.walkT-=1/WALK_FPS;b.walkFr=(b.walkFr+1)%12;}
+    }
+    if(b.hp>0&&b.state==='combat'){
+      b.shootT+=dt;
+      if(b.shootT>1/12){b.shootT-=1/12;b.shootFr=(b.shootFr+1)%4;}
+    }else{b.shootFr=0;}
+  });
   // Point de suivi "retarde" (lissage exponentiel) - cree le petit temps de latence naturel
   if(_botLagPx===null){_botLagPx=px;_botLagPy=py;}
   _botLagPx+=(px-_botLagPx)*Math.min(1,dt*2.2);
