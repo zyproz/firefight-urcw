@@ -153,14 +153,14 @@ body{background:#0A0D08;overflow:hidden;font-family:'Courier New',monospace;user
   background:rgba(0,0,0,.75);border:1px solid rgba(255,255,255,.2);color:#FFD700;
   padding:4px 12px;border-radius:12px;font-size:10px;display:none;z-index:55;
   font-family:'Courier New',monospace}
-/* v5.4 */
-#htl{display:none!important}
+/* v5.5 */
+/* infos ciblees nommement : le menu (#dashboard) et le bouton (#hmbtn)
+   vivent aussi dans #htl, il ne faut surtout pas les toucher */
+#hhp,#hpo,#htix,#hammo,#hcls{display:none!important}
+#htl{background:none!important;border:none!important;padding:0!important;gap:0!important}
 #micBtn,#vcPerm,#hspk{display:none!important}
-#wtBar{position:fixed;top:8px;left:8px;z-index:60;display:flex;gap:4px;font-family:'Courier New',monospace}
-#wtBar button{padding:7px 13px;background:rgba(0,0,0,0.62);border:1px solid rgba(255,255,255,0.22);
- border-radius:7px;color:rgba(255,255,255,0.75);font-family:'Courier New',monospace;font-size:10px;
- letter-spacing:1.5px;font-weight:bold;cursor:pointer}
-#wtBar button.on{background:rgba(200,255,90,0.16);border-color:#C8FF5A;color:#C8FF5A}
+#hmbtn{position:fixed!important;top:8px!important;left:8px!important;z-index:60!important;
+ margin-top:0!important;font-size:20px!important;padding:5px 13px!important;display:block!important}
 </style>
 </head>
 <body>
@@ -350,10 +350,6 @@ body{background:#0A0D08;overflow:hidden;font-family:'Courier New',monospace;user
   <button class="spawn" id="spawnBtn" style="display:none" onclick="doSpawn()">▶ SPAWN</button>
 </div>
 
-<div id="wtBar">
-  <button id="wtb_players" class="on" onclick="wtOpen('players')">JOUEURS</button>
-  <button id="wtb_renfort" onclick="wtOpen('renfort')">RENFORT</button>
-</div>
 <div id="hud">
   <div id="htl">
     <div class="hb" id="hhp">❤️ 100</div>
@@ -2463,30 +2459,44 @@ function drawSoldierSprite(sx,sy,dir,team,cls,isAlly,name,hp,isMe,moving,isShoot
   }
 }
 
-// ── v5.4 CHAMP DE VISION ────────────────────────────────────────
-// Un ennemi n'est visible que s'il est dans le cone de vue ET a portee
-// ET sans obstacle. Tres pres, on le percoit meme hors du cone.
-const FOV_DEMI_ANGLE=52*Math.PI/180;   // cone total ~104 degres
-const FOV_PORTEE=880;                  // distance de vue max
-const FOV_PERCEPTION=90;               // rayon de perception a 360 degres
+// ── v5.5 CHAMP DE VISION ────────────────────────────────────────
+const FOV_DEMI_ANGLE=52*Math.PI/180;
+const FOV_PORTEE=880;
+const FOV_PERCEPTION=90;
+function fovActif(){return !pDead&&!droneActive&&!pInVehicle;}
 function canSeeEnemy(ex,ey){
-  if(pDead)return true;                // en spectateur/mort : on voit tout
-  if(droneActive)return true;          // vue drone : pas de cone
-  let dx=ex-px,dy=ey-py;
-  let dist=Math.hypot(dx,dy);
+  if(!fovActif())return true;
+  let dx=ex-px,dy=ey-py,dist=Math.hypot(dx,dy);
   if(dist>FOV_PORTEE)return false;
   if(dist<FOV_PERCEPTION)return true;
-  let ang=Math.atan2(dy,dx);
-  let ecart=Math.abs(((ang-pdir+Math.PI*3)%(Math.PI*2))-Math.PI);
+  let ecart=Math.abs(((Math.atan2(dy,dx)-pdir+Math.PI*3)%(Math.PI*2))-Math.PI);
   if(ecart>FOV_DEMI_ANGLE)return false;
   return hasLineOfSight(px,py,ex,ey);
 }
-function wtOpen(tab){
-  document.getElementById('wtb_players').classList.toggle('on',tab==='players');
-  document.getElementById('wtb_renfort').classList.toggle('on',tab==='renfort');
-  let db=document.getElementById('dashboard');
-  if(db&&db.style.display==='none')toggleDashboard();
-  try{dbShowTab(tab);}catch(e){}
+// Voile sombre hors du cone de vue : on assombrit tout l'ecran puis on
+// "decoupe" le cone et le petit cercle de perception.
+function drawFOVOverlay(){
+  if(!fovActif())return;
+  let sx=px-camX,sy=py-camY;
+  ctx.save();
+  ctx.globalCompositeOperation='source-over';
+  ctx.beginPath();
+  ctx.rect(0,0,W,H);
+  ctx.moveTo(sx,sy);
+  ctx.arc(sx,sy,FOV_PORTEE,pdir-FOV_DEMI_ANGLE,pdir+FOV_DEMI_ANGLE);
+  ctx.closePath();
+  ctx.moveTo(sx+FOV_PERCEPTION,sy);
+  ctx.arc(sx,sy,FOV_PERCEPTION,0,Math.PI*2,true);
+  ctx.fillStyle='rgba(0,0,0,0.55)';
+  ctx.fill('evenodd');
+  // liseres du cone
+  ctx.beginPath();
+  ctx.moveTo(sx,sy);
+  ctx.lineTo(sx+Math.cos(pdir-FOV_DEMI_ANGLE)*FOV_PORTEE,sy+Math.sin(pdir-FOV_DEMI_ANGLE)*FOV_PORTEE);
+  ctx.moveTo(sx,sy);
+  ctx.lineTo(sx+Math.cos(pdir+FOV_DEMI_ANGLE)*FOV_PORTEE,sy+Math.sin(pdir+FOV_DEMI_ANGLE)*FOV_PORTEE);
+  ctx.strokeStyle='rgba(200,255,90,0.13)';ctx.lineWidth=1.5;ctx.stroke();
+  ctx.restore();
 }
 function drawPlayers(){
   // Remote dead bodies
@@ -2512,7 +2522,7 @@ function drawPlayers(){
   // Remote alive
   Object.values(remotes).forEach(r=>{
     if(r.dead||r.inVeh)return;
-    if(r.team!==myTeam&&!canSeeEnemy(r.x,r.y))return; // v5.4 champ de vision
+    if(r.team!==myTeam&&!canSeeEnemy(r.x,r.y))return; // v5.5 champ de vision
     let sx=r.x-camX,sy=r.y-camY;
     if(Math.abs(sx)>W+50||Math.abs(sy)>H+50)return;
     drawSoldierSprite(sx,sy,r.dir||0,r.team,r.cls,r.team===myTeam,r.name||'?',r.hp||100,false,
@@ -3146,7 +3156,7 @@ let _voiceStream=null,_voicePeers={},_voiceChan=null;
 let _speakerName=null,_speakerTimer=0,_voiceActive=false;
 let _myAudioLevel=0,_audioAnalyser=null;
 
-function requestMicPermission(){ return; /* v5.4 vocal retire */
+function requestMicPermission(){ return; /* v5.5 vocal retire */
   if(_voiceActive){vcDeactivate();return;}
   let el=document.getElementById('vcPerm');
   if(el)el.style.display='flex';
@@ -3207,7 +3217,7 @@ async function initVoiceChat(){
     }
     _poll();
     // Socket.IO signaling (remplace Ably)
-    /*v5.4*/(()=>{})||socket.emit('voice_join_team',{team:myTeam});
+    socket.emit('voice_join_team',{team:myTeam});
     _voiceChan=socket;
     socket.on('join',async d=>{
       if(!d||d.id===myId||d.team!==myTeam)return;
@@ -3365,7 +3375,6 @@ function buyReinforcements(){
 }
 function updateBots(dt){
   if(!myBots.length)return;
-  // v5.4 : chaque bot a ses propres compteurs d'animation, comme un joueur
   myBots.forEach(b=>{
     if(b.walkT===undefined){b.walkT=0;b.walkFr=~~(Math.random()*12);b.shootT=0;b.shootFr=0;}
     if(b.hp>0&&b.state==='follow'){
@@ -3797,6 +3806,7 @@ function loop(ts){
   drawVehicles();
   drawBloodTrail();
   drawDeadBodies();
+  drawFOVOverlay();
   drawPlayers();
   drawDroneFPV(dt);
   if(dmgFlash>0){ctx.fillStyle=`rgba(200,0,0,${dmgFlash*.4})`;ctx.fillRect(0,0,W,H);dmgFlash=Math.max(0,dmgFlash-.04);}
