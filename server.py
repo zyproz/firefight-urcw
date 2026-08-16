@@ -1,13 +1,74 @@
+import eventlet
+eventlet.monkey_patch()
+
 from flask import Flask, send_from_directory, jsonify, request
 import os
 from account_logic import register_player, login_player, heartbeat, sync_braves
 from friends_logic import search_players, send_friend_request, respond_friend_request, list_friends
 from clan_logic import create_clan, search_clans, join_clan, leave_clan, invite_to_clan, respond_clan_invite, get_my_clan
 from chat_logic import send_message, get_messages
+from flask_socketio import SocketIO, emit, join_room
 
 app = Flask(__name__, static_folder='.')
+socketio = SocketIO(app, cors_allowed_origins='*', async_mode='eventlet')
 
 MAP_FILE = os.environ.get('MAP_FILE', 'index.html')
+
+# ---------- Multijoueur temps réel (remplace Ably) ----------
+# Relais générique : chaque event envoyé par un client est renvoyé tel quel
+# à tous les autres clients connectés à CE serveur (= cette map, puisque
+# chaque map a déjà son propre serveur Render). Aucune logique de jeu ici,
+# exactement comme Ably ne faisait que relayer sans comprendre le contenu.
+
+connected_players = set()
+
+RELAY_EVENTS = ['pos', 'sfx', 'veh_spawn', 'shot', 'gren', 'expl', 'hit', 'heal',
+                 'cap', 'died', 'corpse', 'corpse2', 'tix', 'reset', 'state',
+                 'spawn', 'bye', 'blood', 'drone_hit', 'drone']
+
+def _make_relay(event_name):
+    def _handler(data):
+        emit(event_name, data, broadcast=True, include_self=True)
+    return _handler
+
+for _ev in RELAY_EVENTS:
+    socketio.on_event(_ev, _make_relay(_ev))
+
+# Chat vocal (WebRTC signaling) : un salon par équipe, comme les channels
+# Ably 'ff_vc_TEAM_...' avant. Le client doit d'abord émettre
+# 'voice_join_team' avec {team:'UA'|'RU'} avant d'utiliser les events voix.
+VOICE_EVENTS = ['join', 'offer', 'answer', 'ice', 'spk']
+voice_team_by_sid = {}  # sid -> 'UA'/'RU', pour router sans dépendre du payload
+
+@socketio.on('voice_join_team')
+def _voice_join_team(data):
+    team = (data or {}).get('team', '')
+    if team:
+        join_room('voice_' + team)
+        voice_team_by_sid[request.sid] = team
+
+def _make_voice_relay(event_name):
+    def _handler(data):
+        team = voice_team_by_sid.get(request.sid)
+        if team:
+            emit(event_name, data, room='voice_' + team, include_self=True)
+    return _handler
+
+for _ev in VOICE_EVENTS:
+    socketio.on_event(_ev, _make_voice_relay(_ev))
+
+@socketio.on('connect')
+def _on_connect():
+    connected_players.add(request.sid)
+
+@socketio.on('disconnect')
+def _on_disconnect():
+    connected_players.discard(request.sid)
+    voice_team_by_sid.pop(request.sid, None)
+
+@app.route('/api/playercount')
+def api_playercount():
+    return jsonify({'count': len(connected_players)})
 
 @app.after_request
 def add_cors_headers(response):
@@ -137,4 +198,4 @@ def static_files(filename):
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
-    app.run(host='0.0.0.0', port=port)
+    socketio.run(app, host='0.0.0.0', port=port)

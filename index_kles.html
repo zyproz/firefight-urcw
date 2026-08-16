@@ -1348,7 +1348,7 @@ function spawnVehicleFromPanel(panel,type){
       vehicles.push(newVeh);
       _spawnCooldown=Date.now()+1500; // 1.5s cooldown
       showNotif('🚗 '+def.name+' spawné — appuie sur 🚗 pour monter');
-      chan&&chan.publish('veh_spawn',{id,type,team:panel.team,wx,wy,dir,hp:def.hp});
+      chan&&socket.emit('veh_spawn',{id,type,team:panel.team,wx,wy,dir,hp:def.hp});
       return;
     }
   }
@@ -1406,7 +1406,7 @@ function replayGame(){
   CAPS.forEach(c=>{c.team=null;c.capProg=0;c.capTeam=null;});
   let _el=document.getElementById('game_over');
   if(_el)_el.style.display='none';
-  chan&&chan.publish('reset',{tUA:WIN_TIX,tRU:WIN_TIX});
+  chan&&socket.emit('reset',{tUA:WIN_TIX,tRU:WIN_TIX});
   updateHUD();
 }
 // ── SINGLE JOYSTICK ───────────────────────────────────────────────
@@ -1520,7 +1520,7 @@ function fireBullet(){
   bullets.push(b);
   if(pAmmo===0)tryAutoReload();
   updateHUD();playSound(wpn.snd||'r',.3);
-  chan&&chan.publish('shot',{...b,id:myId});
+  chan&&socket.emit('shot',{...b,id:myId});
   // Muzzle flash particle
   let _mfx=pInVehicle?pInVehicle.wx:px+Math.cos(pdir)*16;
   let _mfy=pInVehicle?pInVehicle.wy:py+Math.sin(pdir)*16;
@@ -1544,7 +1544,7 @@ function throwGren(){
   pGren--;if(pBag.grenade>0)pBag.grenade--;updateHUD();
   let g={x:px+Math.cos(pdir)*10,y:py+Math.sin(pdir)*10,
     dx:Math.cos(pdir)*290,dy:Math.sin(pdir)*290,life:.85,team:myTeam,owner:myId};
-  grenades.push(g);chan&&chan.publish('gren',g);
+  grenades.push(g);chan&&socket.emit('gren',g);
 }
 
 // ── ABILITIES ────────────────────────────────────────────────────
@@ -1586,10 +1586,10 @@ function fireDrone(){
   Object.values(remotes).forEach(r=>{
     if(r.team===myTeam||r.dead)return;
     let d=Math.hypot((r.x||0)-droneX,(r.y||0)-droneY);
-    if(d<dr) chan&&chan.publish('hit',{target:r.id,dmg:~~(dmg*(1-d/dr)),owner:myId});
+    if(d<dr) chan&&socket.emit('hit',{target:r.id,dmg:~~(dmg*(1-d/dr)),owner:myId});
   });
   droneActive=false;
-  chan&&chan.publish('drone',{id:myId,active:false});
+  chan&&socket.emit('drone',{id:myId,active:false});
   document.getElementById('bab').innerHTML=`${CLS[myCls].spI}<span id="abcnt" style="font-size:9px">${pSpecial}</span>`;
   showNotif('💥 Drone impacté!');
 }
@@ -1602,7 +1602,7 @@ function useHeal(){
     Object.values(remotes).forEach(r=>{
       if(healed||r.dead||r.team!==myTeam)return;
       if(Math.hypot(r.x-px,r.y-py)<80&&(r.hp||100)<100){
-        chan&&chan.publish('heal',{target:r.id,amt:Math.min(50,100-(r.hp||0)),from:myId});
+        chan&&socket.emit('heal',{target:r.id,amt:Math.min(50,100-(r.hp||0)),from:myId});
         showNotif('💉 Allié soigné!');healed=true;
         if(pSpecial>0){pSpecial--;updateAbBtn();}
       }
@@ -1665,7 +1665,7 @@ function tryVehicle(){
     if(!pInVehicle.driver&&!(pInVehicle.passengers?.length))pInVehicle.available=true;
     pInVehicle=null;
     // Publish position immediately so allies see correct exit location
-    chan&&chan.publish('pos',{id:myId,name:myName,x:px,y:py,dir:pdir,
+    chan&&socket.emit('pos',{id:myId,name:myName,x:px,y:py,dir:pdir,
       team:myTeam,cls:myCls,hp:php,dead:false,inVeh:null,moving:false,wfr:0,sfr:0,reg:myRegiment,tape:myTape});
     showHint('Sorti');updateHUD();return;
   }
@@ -1712,7 +1712,7 @@ function spawnExplosion(wx,wy,r,dmg,owner,team){
   vehicles.forEach(v=>{if(!v.available)return;
     let d=Math.hypot(v.wx-wx,v.wy-wy);if(d<r+30){v.hp-=~~(dmg*3*(1-d/r));if(v.hp<=0)destroyVehicle(v,owner);}
   });
-  chan&&chan.publish('expl',{x:wx,y:wy,r,dmg,owner,team});
+  chan&&socket.emit('expl',{x:wx,y:wy,r,dmg,owner,team});
 }
 
 // ── DAMAGE ────────────────────────────────────────────────────────
@@ -1730,7 +1730,7 @@ function die(killer){
   if(pInVehicle){pInVehicle.driver=null;pInVehicle=null;}
   pWounded=false;pBleedT=0;bloodTrail=[];
   playSfx('dead',1.0); // Son de mort
-  chan&&chan.publish('sfx',{t:'dead',x:px,y:py}); // broadcast
+  chan&&socket.emit('sfx',{t:'dead',x:px,y:py}); // broadcast
   updateHUD();
 
   // 1. Store permanent corpse for local draw
@@ -1740,11 +1740,11 @@ function die(killer){
   _allCorpses.push(_c);
 
   // 2. Broadcast corpse to all players (permanent)
-  chan&&chan.publish('corpse2',{..._c,inv:JSON.parse(JSON.stringify(pBag)),killedBy:killer});
+  chan&&socket.emit('corpse2',{..._c,inv:JSON.parse(JSON.stringify(pBag)),killedBy:killer});
 
   // 3. Ticket system
   tickets[myTeam]=Math.max(0,(tickets[myTeam]||25)-1);
-  chan&&chan.publish('tix',{...tickets});
+  chan&&socket.emit('tix',{...tickets});
   if(tickets.UA<=0||tickets.RU<=0)checkWin();
 
   // 4. Show death screen
@@ -1752,7 +1752,7 @@ function die(killer){
   if(_ds)_ds.style.display='flex';
 
   // 5. Legacy died event (for remote dead rendering)
-  chan&&chan.publish('died',{id:myId,x:px,y:py,team:myTeam,cls:myCls,
+  chan&&socket.emit('died',{id:myId,x:px,y:py,team:myTeam,cls:myCls,
     name:myName,angle:pdir,inv:{...pBag},df:dyingFr,reg:myRegiment,killedBy:killer});
   myMatchStats.deaths++;dBravesLiveUpdate();
 }
@@ -1780,7 +1780,7 @@ function clickRespawn(){
   let _ds=document.getElementById('ds');
   if(_ds)_ds.style.display='none';
   // Broadcast new position immediately
-  chan&&chan.publish('pos',{id:myId,name:myName,x:px,y:py,dir:pdir,
+  chan&&socket.emit('pos',{id:myId,name:myName,x:px,y:py,dir:pdir,
     team:myTeam,cls:myCls,hp:php,dead:false,inVeh:null,moving:false,wfr:0,sfr:0});
   updateHUD();updateAbBtn();
 }
@@ -1790,7 +1790,7 @@ function doRespawn(){
   pDead=false;isDying=false;
   let cd=CLS[myCls];
   tickets[myTeam]=Math.max(0,(tickets[myTeam]||25)-1);
-  chan&&chan.publish('tix',{...tickets});
+  chan&&socket.emit('tix',{...tickets});
   if(tickets.UA<=0||tickets.RU<=0)checkWin();
   php=pMaxHp;initBag();
   pAmmo=pBag[pWeapon+'_a']||cd.ammo;pMags=pBag[pWeapon+'_m']||cd.mags;
@@ -1811,7 +1811,7 @@ function doRespawn(){
   if(_dtt)_dtt.textContent='Respawn disponible dans 5s';
   // Broadcast new spawn as fresh entity
   // Tell all players this player has a new position (corpse stays in _corpses)
-  chan&&chan.publish('pos',{id:myId,name:myName,x:px,y:py,dir:pdir,
+  chan&&socket.emit('pos',{id:myId,name:myName,x:px,y:py,dir:pdir,
     team:myTeam,cls:myCls,hp:php,dead:false,inVeh:null,moving:false,wfr:0,sfr:0});
   updateHUD();updateAbBtn();
 }
@@ -1844,7 +1844,7 @@ function updateCapture(dt){
       cp.team=inTeam;cp.capProg=0;cp.capTeam=null;
       if(myIn&&inTeam===myTeam){myMatchStats.captures++;spawnFloatText(px,py,'+15','#FFD84D','OBJECTIF','#4488FF');dBravesLiveUpdate();}
       showNotif(`🚩 Objectif ${cp.id} (${cp.name}) capturé! ${inTeam==='UA'?'🇺🇦':'🇷🇺'}`);
-      updateHUD();chan&&chan.publish('cap',{id:cp.id,team:inTeam,prog:0});
+      updateHUD();chan&&socket.emit('cap',{id:cp.id,team:inTeam,prog:0});
     }
   });
 }
@@ -1976,14 +1976,14 @@ function valInv(){
 }
 
 // ── NETWORK ───────────────────────────────────────────────────────
-let ablyClient=null,chan=null;
+let socket=null,chan=null;
 function netConnect(){
-  if(typeof Ably==='undefined'){console.warn('[net] Ably indisponible');return;}
-  ablyClient=new Ably.Realtime({key:AKEY,clientId:myId});
-  ablyClient.connection.on('connected',()=>{
-    chan=ablyClient.channels.get(CHAN);
-    chan.subscribe('pos',m=>{
-      let d=m.data;if(!d||d.id===myId||myBots.some(b=>b.id===d.id))return;
+  if(typeof io==='undefined'){console.warn('[net] Socket.IO indisponible');return;}
+  socket=io();
+  socket.on('connect',()=>{
+    chan=true;
+    socket.on('pos',d=>{
+      if(!d||d.id===myId||myBots.some(b=>b.id===d.id))return;
       // Nouveau joueur détecté → republier nos cadavres pour qu'il les voit
       let _isNew=!remotes[d.id];
       if(!remotes[d.id])remotes[d.id]={};
@@ -1993,11 +1993,11 @@ function netConnect(){
         setTimeout(()=>{
           _allCorpses.forEach(c=>{
             if(c.cid&&c.cid.startsWith(myId+'_')){
-              chan&&chan.publish('corpse2',{...c});
+              chan&&socket.emit('corpse2',{...c});
             }
           });
           // Envoyer tickets + caps actuels
-          chan&&chan.publish('state',{
+          chan&&socket.emit('state',{
             tUA:tickets.UA,tRU:tickets.RU,
             caps:CAPS.map(c=>({wx:c.wx,wy:c.wy,team:c.team,capProg:c.capProg,capTeam:c.capTeam}))
           });
@@ -2034,15 +2034,15 @@ function netConnect(){
       }
     });
     // Sons émis par les autres joueurs (hit/mort)
-    chan.subscribe('sfx',m=>{
-      let d=m.data;if(!d)return;
+    socket.on('sfx',d=>{
+      if(!d)return;
       let dist=Math.hypot((d.x||0)-px,(d.y||0)-py);
       let vol=Math.max(0.05,0.7*(1-dist/900));
       if(dist<900)playSfx(d.t==='dead'?'dead':'hit',vol);
     });
     // Recevoir les spawns véhicule des autres joueurs
-    chan.subscribe('veh_spawn',m=>{
-      let d=m.data;if(!d)return;
+    socket.on('veh_spawn',d=>{
+      if(!d)return;
       if(!vehicles.find(v=>v.id===d.id)){
         let def=VDEFS[d.type];if(!def)return;
         vehicles.push({id:d.id,type:d.type,team:d.team,
@@ -2051,8 +2051,8 @@ function netConnect(){
           spawnX:d.wx,spawnY:d.wy,destroyed:false});
       }
     });
-    chan.subscribe('shot',m=>{
-      let d=m.data;if(!d||d.owner===myId)return;
+    socket.on('shot',d=>{
+      if(!d||d.owner===myId)return;
       bullets.push({...d});
       // Son de tir distant (plus discret)
       if(d.x!==undefined&&d.y!==undefined){
@@ -2061,14 +2061,14 @@ function netConnect(){
         if(_vol>0.04)playSound(d.expl>0?'x':d.rng>400?'s':'r',_vol);
       }
     });
-    chan.subscribe('gren',m=>{let d=m.data;if(!d||d.owner===myId)return;grenades.push({...d});});
-    chan.subscribe('expl',m=>{
-      let d=m.data;if(!d||d.owner===myId)return;
+    socket.on('gren',d=>{if(!d||d.owner===myId)return;grenades.push({...d});});
+    socket.on('expl',d=>{
+      if(!d||d.owner===myId)return;
       explosions.push({x:d.x,y:d.y,r:d.r,age:0,maxAge:.7});
       if(!pDead){let dd=Math.hypot(d.x-px,d.y-py);if(dd<d.r)takeDamage(~~(d.dmg*(1-dd/d.r)),d.owner);}
     });
-    chan.subscribe('hit',m=>{
-      let d=m.data;if(!d)return;
+    socket.on('hit',d=>{
+      if(!d)return;
       if(d.target===myId){takeDamage(d.dmg,d.from);return;}
       let bot=myBots.find(b=>b.id===d.target);
       if(bot&&bot.hp>0){
@@ -2076,16 +2076,16 @@ function netConnect(){
         if(bot.hp<=0){
           bot.hp=0;
           showNotif('☠️ Un renfort est tombé');
-          chan.publish('pos',{id:bot.id,name:bot.name||'Renfort',x:bot.x,y:bot.y,dir:bot.dir,
+          socket.emit('pos',{id:bot.id,name:bot.name||'Renfort',x:bot.x,y:bot.y,dir:bot.dir,
             team:myTeam,cls:bot.cls||myCls,hp:0,dead:true,reg:myRegiment,tape:myTape,isBot:true,ownerId:myId});
           setTimeout(()=>{myBots=myBots.filter(bb=>bb.id!==bot.id);},4000);
         }
       }
     });
-    chan.subscribe('heal',m=>{let d=m.data;if(!d||d.target!==myId)return;php=Math.min(pMaxHp,php+d.amt);updateHUD();showNotif('💉 +'+d.amt+'PV!');});
-    chan.subscribe('cap',m=>{let d=m.data;if(!d)return;let cp=CAPS.find(c=>c.id===d.id);if(cp){cp.team=d.team;cp.capProg=0;updateHUD();}});
-    chan.subscribe('died',m=>{
-      let d=m.data;if(!d)return;
+    socket.on('heal',d=>{if(!d||d.target!==myId)return;php=Math.min(pMaxHp,php+d.amt);updateHUD();showNotif('💉 +'+d.amt+'PV!');});
+    socket.on('cap',d=>{if(!d)return;let cp=CAPS.find(c=>c.id===d.id);if(cp){cp.team=d.team;cp.capProg=0;updateHUD();}});
+    socket.on('died',d=>{
+      if(!d)return;
       if(remotes[d.id])Object.assign(remotes[d.id],{dead:true,deadX:d.x,deadY:d.y,deadAngle:d.angle||0,bloodR:30,deadInv:d.inv||{}});
       let _df2=(d.df!==undefined)?d.df:~~(Math.random()*6);
       remoteBodies.push({x:d.x,y:d.y,team:d.team,cls:d.cls,name:d.name||'?',
@@ -2093,8 +2093,8 @@ function netConnect(){
       if(remotes[d.id])remotes[d.id].deathFrame=_df2;
     });
     // Permanent corpse subscribe — completely independent of player state
-    chan.subscribe('corpse',m=>{
-      let d=m.data;if(!d||d.cid===undefined)return;
+    socket.on('corpse',d=>{
+      if(!d||d.cid===undefined)return;
       // Only add if not already stored (avoid duplicates on reconnect)
       if(!_corpses.find(c=>c.cid===d.cid)){
         _corpses.push({cid:d.cid,x:d.x,y:d.y,team:d.team,cls:d.cls,
@@ -2102,25 +2102,25 @@ function netConnect(){
           inventory:d.inv||{}});
       }
     });
-    chan.subscribe('corpse2',m=>{
-      let d=m.data;if(!d||!d.cid)return;
+    socket.on('corpse2',d=>{
+      if(!d||!d.cid)return;
       if(!_allCorpses.find(c=>c.cid===d.cid)){
         _allCorpses.push({cid:d.cid,x:d.x,y:d.y,team:d.team,cls:d.cls||'fusil',
           name:d.name||'?',angle:d.angle||0,blood:d.blood||28,df:d.df||0,reg:d.reg||null});
         if(d.killedBy===myId){myMatchStats.kills++;spawnFloatText(d.x,d.y,'+10','#FFD84D','KILL','#FF4444');dBravesLiveUpdate();}
       }
     });
-    chan.subscribe('tix',m=>{let d=m.data;if(d)tickets=d;updateHUD();});
-    chan.subscribe('reset',m=>{
-      let d=m.data;if(!d)return;
+    socket.on('tix',d=>{if(d)tickets=d;updateHUD();});
+    socket.on('reset',d=>{
+      if(!d)return;
       _gameOverShown=false;
       tickets.UA=d.tUA||WIN_TIX;tickets.RU=d.tRU||WIN_TIX;
       CAPS.forEach(c=>{c.team=null;c.capProg=0;c.capTeam=null;});
       let _el=document.getElementById('game_over');if(_el)_el.style.display='none';
       updateHUD();
     });
-    chan.subscribe('state',m=>{
-      let d=m.data;if(!d)return;
+    socket.on('state',d=>{
+      if(!d)return;
       // Synchro tickets (prendre le min = game avancée)
       if(d.tUA!==undefined)tickets.UA=Math.min(tickets.UA,d.tUA);
       if(d.tRU!==undefined)tickets.RU=Math.min(tickets.RU,d.tRU);
@@ -2132,8 +2132,8 @@ function netConnect(){
       updateHUD();
     });
         // Handle remote player respawn — fresh entity, corpse stays in _corpses[]
-    chan.subscribe('spawn',m=>{
-      let d=m.data;if(!d||d.id===myId)return;
+    socket.on('spawn',d=>{
+      if(!d||d.id===myId)return;
       if(!remotes[d.id])remotes[d.id]={};
       // Reset to alive — corpse in _corpses[] is separate, stays forever
       Object.assign(remotes[d.id],{
@@ -2142,46 +2142,46 @@ function netConnect(){
         deadX:undefined,deadY:undefined
       });
     });
-    chan.subscribe('bye',m=>{
-      let d=m.data;if(d&&d.id){
+    socket.on('bye',d=>{
+      if(d&&d.id){
         delete remotes[d.id];
         delete remoteBloodTrails[d.id]; // Nettoyer le sang
       }
     });
-    chan.subscribe('blood',m=>{
-      let d=m.data;if(!d||d.id===myId)return;
+    socket.on('blood',d=>{
+      if(!d||d.id===myId)return;
       if(!remoteBloodTrails[d.id])remoteBloodTrails[d.id]=[];
       remoteBloodTrails[d.id].push({x:d.x,y:d.y});
       if(remoteBloodTrails[d.id].length>100)remoteBloodTrails[d.id].shift();
     });
-    chan.subscribe('drone_hit',m=>{
-      let d=m.data;if(!d||d.target!==myId||!droneActive)return;
-      stopDroneSound();droneActive=false;chan&&chan.publish('drone',{id:myId,active:false});
+    socket.on('drone_hit',d=>{
+      if(!d||d.target!==myId||!droneActive)return;
+      stopDroneSound();droneActive=false;chan&&socket.emit('drone',{id:myId,active:false});
       spawnExplosion(droneX,droneY,80,30,d.from,null);showNotif('💥 Drone abattu!');
     });
-    chan.subscribe('drone',m=>{
-      let d=m.data;if(!d||d.id===myId)return;
+    socket.on('drone',d=>{
+      if(!d||d.id===myId)return;
       if(!remotes[d.id])remotes[d.id]={};
       if(d.active){remotes[d.id].droneActive=true;remotes[d.id].droneX=d.x;remotes[d.id].droneY=d.y;remotes[d.id].droneDir=d.dir||0;remotes[d.id].droneTeam=d.team;}
       else{remotes[d.id].droneActive=false;}
     });
     setInterval(()=>{if(!chan||!gameOn)return;
-      chan.publish('pos',{id:myId,name:myName,x:px,y:py,dir:pdir,
+      socket.emit('pos',{id:myId,name:myName,x:px,y:py,dir:pdir,
         team:myTeam,cls:myCls,hp:php,dead:pDead,inVeh:pInVehicle?pInVehicle.id:null,
         isDriver:pInVehicle?pInVehicle.driver===myId:false,
         moving:pMoving,wfr:walkFr,sfr:shootFr,
         reg:myRegiment,tape:myTape,
         vehX:pInVehicle?pInVehicle.wx:undefined,vehY:pInVehicle?pInVehicle.wy:undefined,vehDir:pInVehicle?pInVehicle.dir:undefined});
       // Drone sync
-      if(droneActive&&chan)chan.publish('drone',{id:myId,x:droneX,y:droneY,dir:droneDir,team:myTeam,active:true});
+      if(droneActive&&chan)socket.emit('drone',{id:myId,x:droneX,y:droneY,dir:droneDir,team:myTeam,active:true});
       // Renforts (bots) sync
       myBots.forEach(bot=>{
-        chan.publish('pos',{id:bot.id,name:bot.name||'Renfort',x:bot.x,y:bot.y,dir:bot.dir,
+        socket.emit('pos',{id:bot.id,name:bot.name||'Renfort',x:bot.x,y:bot.y,dir:bot.dir,
           team:myTeam,cls:bot.cls||myCls,hp:bot.hp,dead:bot.hp<=0,inVeh:bot.inVehSeat,
           moving:bot.state==='follow',wfr:0,sfr:0,reg:myRegiment,tape:myTape,isBot:true,ownerId:myId});
       });
     },80);
-    chan.publish('pos',{id:myId,name:myName,x:px,y:py,dir:pdir,team:myTeam,cls:myCls,hp:php,dead:false,reg:myRegiment,tape:myTape});
+    socket.emit('pos',{id:myId,name:myName,x:px,y:py,dir:pdir,team:myTeam,cls:myCls,hp:php,dead:false,reg:myRegiment,tape:myTape});
   });
 }
 
@@ -2722,7 +2722,7 @@ function drawBulletsFn(dt){
     }
     // Check si balle ennemie touche MON drone
     if(b.owner!==myId&&b.team!==myTeam&&droneActive&&Math.hypot(b.x-droneX,b.y-droneY)<30){
-      stopDroneSound();droneActive=false;chan&&chan.publish('drone',{id:myId,active:false});
+      stopDroneSound();droneActive=false;chan&&socket.emit('drone',{id:myId,active:false});
       spawnExplosion(droneX,droneY,75,25,b.owner,b.team);
       showNotif('💥 Drone détruit!');bullets.splice(i,1);continue;
     }
@@ -2732,7 +2732,7 @@ function drawBulletsFn(dt){
       Object.entries(remotes).forEach(([rid,r])=>{
         if(dh||!r.droneActive)return;
         if(Math.hypot(b.x-(r.droneX||0),b.y-(r.droneY||0))<30){
-          chan&&chan.publish('drone_hit',{target:rid,from:myId});
+          chan&&socket.emit('drone_hit',{target:rid,from:myId});
           spawnExplosion(b.x,b.y,60,20,myId,myTeam);dh=true;
         }
       });
@@ -2793,7 +2793,7 @@ function drawBulletsFn(dt){
     }
     // Hit check — local player
     if(b.owner!==myId&&b.team!==myTeam&&!pDead&&Math.hypot(b.x-px,b.y-py)<8){
-      takeDamage(b.dmg,b.owner);chan&&chan.publish('hit',{target:myId,from:b.owner,dmg:b.dmg});
+      takeDamage(b.dmg,b.owner);chan&&socket.emit('hit',{target:myId,from:b.owner,dmg:b.dmg});
       bullets.splice(i,1);continue;
     }
     // Hit check — remotes (own shots)
@@ -2802,7 +2802,7 @@ function drawBulletsFn(dt){
       Object.entries(remotes).forEach(([rid,r])=>{
         if(hit||r.dead||r.team===myTeam)return;
         if(Math.hypot(b.x-r.x,b.y-r.y)<8){
-          chan&&chan.publish('hit',{target:rid,from:myId,dmg:b.dmg});hit=true;
+          chan&&socket.emit('hit',{target:rid,from:myId,dmg:b.dmg});hit=true;
           let _bd=Math.atan2(b.dy,b.dx);
           for(let _bi=0;_bi<4;_bi++){let _ba=_bd+Math.PI+(Math.random()-.5)*2;
             particles.push({x:b.x,y:b.y,vx:Math.cos(_ba)*(28+Math.random()*45),
@@ -3164,36 +3164,37 @@ async function initVoiceChat(){
       let s=0;_buf.slice(0,30).forEach(v=>s+=v);
       _myAudioLevel=s/30;
       if(_myAudioLevel>22&&_voiceChan&&chan)
-        _voiceChan.publish('spk',{id:myId,name:myName,team:myTeam});
+        socket.emit('spk',{id:myId,name:myName,team:myTeam});
       setTimeout(_poll,150);
     }
     _poll();
-    // Ably signaling
-    _voiceChan=ablyClient.channels.get('ff_vc_'+myTeam+'_'+AKEY.slice(0,6));
-    _voiceChan.subscribe('join',async m=>{
-      let d=m.data;if(!d||d.id===myId||d.team!==myTeam)return;
+    // Socket.IO signaling (remplace Ably)
+    socket.emit('voice_join_team',{team:myTeam});
+    _voiceChan=socket;
+    socket.on('join',async d=>{
+      if(!d||d.id===myId||d.team!==myTeam)return;
       await _vcOffer(d.id);
     });
-    _voiceChan.subscribe('offer',async m=>{
-      let d=m.data;if(!d||d.to!==myId)return;
+    socket.on('offer',async d=>{
+      if(!d||d.to!==myId)return;
       let pc=_vcPC(d.from);
       await pc.setRemoteDescription(new RTCSessionDescription(d.sdp));
       let ans=await pc.createAnswer();await pc.setLocalDescription(ans);
-      _voiceChan.publish('answer',{from:myId,to:d.from,sdp:ans});
+      socket.emit('answer',{from:myId,to:d.from,sdp:ans});
     });
-    _voiceChan.subscribe('answer',async m=>{
-      let d=m.data;if(!d||d.to!==myId)return;
+    socket.on('answer',async d=>{
+      if(!d||d.to!==myId)return;
       let pc=_voicePeers[d.from];if(pc)await pc.setRemoteDescription(new RTCSessionDescription(d.sdp));
     });
-    _voiceChan.subscribe('ice',async m=>{
-      let d=m.data;if(!d||d.to!==myId)return;
+    socket.on('ice',async d=>{
+      if(!d||d.to!==myId)return;
       let pc=_voicePeers[d.from];if(pc&&d.candidate)await pc.addIceCandidate(new RTCIceCandidate(d.candidate));
     });
-    _voiceChan.subscribe('spk',m=>{
-      let d=m.data;if(!d||d.id===myId||d.team!==myTeam)return;
+    socket.on('spk',d=>{
+      if(!d||d.id===myId||d.team!==myTeam)return;
       _speakerName=d.name;_speakerTimer=2.5;
     });
-    setTimeout(()=>_voiceChan&&_voiceChan.publish('join',{id:myId,name:myName,team:myTeam}),600);
+    setTimeout(()=>_voiceChan&&socket.emit('join',{id:myId,name:myName,team:myTeam}),600);
     showNotif('🎙️ Vocal '+myTeam+' actif');
   }catch(e){
     showNotif('🎙️ Micro refusé: '+e.message);
@@ -3214,7 +3215,7 @@ function _vcPC(peerId){
   };
   pc.onicecandidate=e=>{
     if(e.candidate&&_voiceChan)
-      _voiceChan.publish('ice',{from:myId,to:peerId,candidate:e.candidate});
+      socket.emit('ice',{from:myId,to:peerId,candidate:e.candidate});
   };
   _voicePeers[peerId]=pc;return pc;
 }
@@ -3222,7 +3223,7 @@ function _vcPC(peerId){
 async function _vcOffer(peerId){
   let pc=_vcPC(peerId);
   let offer=await pc.createOffer();await pc.setLocalDescription(offer);
-  _voiceChan&&_voiceChan.publish('offer',{from:myId,to:peerId,sdp:offer,team:myTeam});
+  _voiceChan&&socket.emit('offer',{from:myId,to:peerId,sdp:offer,team:myTeam});
 }
 
 function drawVoiceHUD(){
@@ -3385,7 +3386,7 @@ function updateBots(dt){
         let bb={x:bot.x,y:bot.y,dx:Math.cos(ang)*bwpn.bSpd,dy:Math.sin(ang)*bwpn.bSpd,
           team:myTeam,dmg:~~(bwpn.dmg*0.85),expl:0,r:bwpn.bSz,col:bwpn.col,life:bwpn.rng/bwpn.bSpd,owner:myId,fromBot:bot.id,fromTrench:isInTrench(bot.x,bot.y)};
         bullets.push(bb);
-        chan&&chan.publish('shot',{...bb,id:myId});
+        chan&&socket.emit('shot',{...bb,id:myId});
         playSound&&playSound(bwpn.snd||'r',0.22);
       }
     } else {
@@ -3494,7 +3495,7 @@ function updatePlane(dt){
     if(m.t>=m.dur){
       if(typeof spawnExplosion==='function')spawnExplosion(m.tx,m.ty,150,55,myId,myTeam);
       if(typeof spawnFloatText==='function')spawnFloatText(m.tx,m.ty,'✈️ IMPACT','#FF4444','',null);
-      chan&&chan.publish('expl',{x:m.tx,y:m.ty,r:150,owner:myId});
+      chan&&socket.emit('expl',{x:m.tx,y:m.ty,r:150,owner:myId});
       missiles.splice(i,1);
     }
   }
@@ -3640,7 +3641,7 @@ function loop(ts){
         bloodTrail.push({x:px,y:py});
         if(bloodTrail.length>100)bloodTrail.shift();
         // Broadcaster le point de sang aux autres joueurs
-        chan&&chan.publish('blood',{id:myId,x:px,y:py});
+        chan&&socket.emit('blood',{id:myId,x:px,y:py});
       }
     }
   }
@@ -3760,7 +3761,7 @@ document.addEventListener('keydown',e=>{
   if(e.code==='Space'&&!pDead){e.preventDefault();fireBullet();}
   if(e.code==='KeyF'&&lootTarget)openInv(true,lootTarget);
 });
-window.addEventListener('beforeunload',()=>{if(chan)chan.publish('bye',{id:myId});});
+window.addEventListener('beforeunload',()=>{if(chan)socket.emit('bye',{id:myId});});
 
 // ── INIT ──────────────────────────────────────────────────────────
 // selT et selReg initialisés par le joueur via le menu
@@ -3785,12 +3786,11 @@ requestAnimationFrame(loop);
 
 // ── ABLY RECONNECT: handle disconnection ─────────────────────────────────────
 function _ablyReconnect(){
-  if(!window._ablyClient)return;
+  if(!socket)return;
   try{
-    let st=window._ablyClient.connection.state;
-    if(st==='disconnected'||st==='suspended'||st==='failed'){
-      console.log('[Ably] Reconnecting...',st);
-      window._ablyClient.connect();
+    if(!socket.connected){
+      console.log('[Socket.IO] Reconnecting...');
+      socket.connect();
     }
   }catch(e){}
 }
@@ -3802,7 +3802,7 @@ window.addEventListener('visibilitychange',()=>{
 });
 
 </script>
-<script src="https://cdn.ably.io/lib/ably.min-1.js">
+<script src="/socket.io/socket.io.js">
 </script>
 <script>
 (function(){
