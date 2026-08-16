@@ -3961,6 +3961,22 @@ function enterMainMenu(){
   if(!pm)return;
   let acc=dGetAccount();
   dLoadIncomingStats();
+  // Reprise auto d'une partie si on arrive avec les paramètres de jeu dans l'URL
+  // (cas Avdiivka : le clic "Jouer" recharge cette même page)
+  let _p=new URLSearchParams(window.location.search);
+  if(_p.has('pseudo')&&_p.has('team')&&_p.has('regiment')&&_p.has('cls')){
+    let cleanUrl=window.location.origin+window.location.pathname;
+    window.history.replaceState({},'',cleanUrl);
+    let pt=document.getElementById('pseudo');
+    if(pt)pt.value=_p.get('pseudo');
+    myTeam=_p.get('team');
+    myRegiment=_p.get('regiment');
+    myCls=_p.get('cls');
+    let wpn=_p.get('weapon');
+    if(wpn&&typeof dSelWpn==='function')dSelWpn(wpn);
+    doSpawn();
+    return;
+  }
   pm.style.display='block';
   dUpdateBravesDisplay();
   dApplyWeaponLocks();
@@ -4166,24 +4182,20 @@ let curServer=SERVERS[0];
 let _serverPollT=null;
 async function dFetchPlayerCountFor(server){
   try{
-    let auth=btoa(server.akey);
-    let res=await fetch('https://rest.ably.io/channels/'+server.chan+'?occupancy=metrics',{
-      headers:{'Authorization':'Basic '+auth}
-    });
+    let res=await fetch(server.url+'/api/playercount');
     if(!res.ok)throw new Error('http '+res.status);
     let data=await res.json();
-    let count=data&&data.status&&data.status.occupancy&&data.status.occupancy.metrics?data.status.occupancy.metrics.connections:null;
-    return (count===null||count===undefined)?null:count;
+    return (data&&typeof data.count==='number')?data.count:null;
   }catch(e){return null;}
 }
 async function dRenderServerList(){
   let box=document.getElementById('d_server_list');
   if(!box)return;
-  for(let s of SERVERS){
+  await Promise.all(SERVERS.map(async s=>{
     let count=await dFetchPlayerCountFor(s);
     let el=document.getElementById('d_srv_'+s.id+'_count');
     if(el)el.textContent=(count===null?'?':count)+'/'+s.maxPlayers;
-  }
+  }));
 }
 function dSelectServer(id){
   curServer=SERVERS.find(s=>s.id===id)||SERVERS[0];
@@ -4197,14 +4209,10 @@ async function dFetchPlayerCount(){
   let el=document.getElementById('d_server_count_val');
   if(!el)return;
   try{
-    let auth=btoa(curServer.akey);
-    let res=await fetch('https://rest.ably.io/channels/'+curServer.chan+'?occupancy=metrics',{
-      headers:{'Authorization':'Basic '+auth}
-    });
+    let res=await fetch(curServer.url+'/api/playercount');
     if(!res.ok)throw new Error('http '+res.status);
     let data=await res.json();
-    let count=data&&data.status&&data.status.occupancy&&data.status.occupancy.metrics?data.status.occupancy.metrics.connections:null;
-    el.textContent=(count===null||count===undefined)?'?':count;
+    el.textContent=(data&&typeof data.count==='number')?data.count:'?';
   }catch(e){
     el.textContent='?';
   }
