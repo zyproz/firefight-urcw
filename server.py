@@ -10,7 +10,7 @@ from chat_logic import send_message, get_messages
 from flask_socketio import SocketIO, emit, join_room
 
 app = Flask(__name__, static_folder='.')
-socketio = SocketIO(app, cors_allowed_origins='*', async_mode='eventlet')
+socketio = SocketIO(app, cors_allowed_origins='*', async_mode='eventlet', logger=True, engineio_logger=True)
 
 MAP_FILE = os.environ.get('MAP_FILE', 'index.html')
 
@@ -26,13 +26,14 @@ RELAY_EVENTS = ['pos', 'sfx', 'veh_spawn', 'shot', 'gren', 'expl', 'hit', 'heal'
                  'cap', 'died', 'corpse', 'corpse2', 'tix', 'reset', 'state',
                  'spawn', 'bye', 'blood', 'drone_hit', 'drone']
 
-def _make_relay(event_name):
-    def _handler(data):
+def _register_relay(event_name):
+    @socketio.on(event_name)
+    def _handler(data, event_name=event_name):
+        print(f'[RELAIS] {event_name} recu de {request.sid}, renvoye a {len(connected_players)} client(s)')
         emit(event_name, data, broadcast=True, include_self=True)
-    return _handler
 
 for _ev in RELAY_EVENTS:
-    socketio.on_event(_ev, _make_relay(_ev))
+    _register_relay(_ev)
 
 # Chat vocal (WebRTC signaling) : un salon par équipe, comme les channels
 # Ably 'ff_vc_TEAM_...' avant. Le client doit d'abord émettre
@@ -47,24 +48,26 @@ def _voice_join_team(data):
         join_room('voice_' + team)
         voice_team_by_sid[request.sid] = team
 
-def _make_voice_relay(event_name):
-    def _handler(data):
+def _register_voice_relay(event_name):
+    @socketio.on(event_name)
+    def _handler(data, event_name=event_name):
         team = voice_team_by_sid.get(request.sid)
         if team:
             emit(event_name, data, room='voice_' + team, include_self=True)
-    return _handler
 
 for _ev in VOICE_EVENTS:
-    socketio.on_event(_ev, _make_voice_relay(_ev))
+    _register_voice_relay(_ev)
 
 @socketio.on('connect')
 def _on_connect():
     connected_players.add(request.sid)
+    print(f'[CONNEXION] {request.sid} - total connectes: {len(connected_players)}')
 
 @socketio.on('disconnect')
 def _on_disconnect():
     connected_players.discard(request.sid)
     voice_team_by_sid.pop(request.sid, None)
+    print(f'[DECONNEXION] {request.sid} - total connectes: {len(connected_players)}')
 
 @app.route('/api/playercount')
 def api_playercount():
