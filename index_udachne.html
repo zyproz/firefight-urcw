@@ -3457,6 +3457,14 @@ function netConnect(){
               chan&&socket.emit('corpse2',{...c});
             }
           });
+          // Republier nos vehicules : sans ca, un joueur arrive apres le
+          // spawn d'un vehicule ne le voit jamais, et tout occupant devient
+          // invisible pour lui.
+          vehicles.forEach(v=>{
+            if(v.destroyed)return;
+            chan&&socket.emit('veh_spawn',{id:v.id,type:v.type,team:v.team,
+              wx:v.wx,wy:v.wy,dir:v.dir,hp:v.hp});
+          });
           // Envoyer tickets + caps actuels
           chan&&socket.emit('state',{
             tUA:tickets.UA,tRU:tickets.RU,
@@ -3976,7 +3984,11 @@ function drawPlayers(){
   });
   // Remote alive
   Object.values(remotes).forEach(r=>{
-    if(r.dead||r.inVeh)return;
+    if(r.dead)return;
+    // S'il est dans un vehicule que NOUS connaissons, il sera dessine par
+    // _drawVehPassengers. Si le vehicule nous est inconnu, on le dessine
+    // quand meme a sa derniere position : plus jamais de joueur fantome.
+    if(r.inVeh&&vehicles.some(v=>v.id===r.inVeh))return;
     if(r.team!==myTeam&&!canSeeEnemy(r.x,r.y))return; // v5.5 champ de vision
     let sx=r.x-camX,sy=r.y-camY;
     if(Math.abs(sx)>W+50||Math.abs(sy)>H+50)return;
@@ -5342,6 +5354,18 @@ loadSprites(()=>{
 });
 // Start loop immediately too (will use fallback procedural if sprites not ready)
 requestAnimationFrame(loop);
+// ── RAPPEL VEHICULES : toutes les 6 s on rediffuse nos vehicules.
+// La reception ignore les doublons, donc c'est sans effet de bord et ca
+// repare tout message perdu ou tout client arrive en cours de partie.
+setInterval(()=>{
+  if(!chan||!gameOn||!vehicles.length)return;
+  vehicles.forEach(v=>{
+    if(v.destroyed)return;
+    socket.emit('veh_spawn',{id:v.id,type:v.type,team:v.team,
+      wx:v.wx,wy:v.wy,dir:v.dir,hp:v.hp});
+  });
+},6000);
+
 // ── KEEPALIVE: ping server every 4min to prevent Render.com sleep ────────────
 (function(){
   function _ping(){

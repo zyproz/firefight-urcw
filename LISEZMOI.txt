@@ -1,0 +1,53 @@
+WarEast.io — correctif véhicules + accès web
+=============================================
+
+LE BUG DES VÉHICULES
+Quand un joueur déployait un véhicule, l'autre ne le voyait pas ; et dès
+que le premier montait dedans, il disparaissait complètement de l'écran
+du second.
+
+CAUSE
+L'événement 'veh_spawn' n'était envoyé qu'au moment du déploiement. Tout
+joueur arrivé APRÈS ne recevait jamais l'information et n'avait donc pas
+le véhicule dans sa liste. Le code de rendu ignorait purement et
+simplement tout joueur marqué "dans un véhicule" — et comme le véhicule
+était inconnu, plus personne ne le dessinait. D'où le joueur fantôme.
+
+Le code republiait déjà les cadavres et l'état des objectifs aux nouveaux
+arrivants, mais les véhicules avaient été oubliés dans cette liste.
+
+LES TROIS CORRECTIFS
+1. À l'arrivée d'un nouveau joueur, on lui republie aussi nos véhicules,
+   exactement comme on lui republie déjà les cadavres.
+
+2. Rappel automatique toutes les 6 secondes : chaque client rediffuse ses
+   véhicules. La réception ignore les doublons, donc aucun effet de bord,
+   et ça répare tout seul un message perdu ou un client arrivé en cours de
+   partie.
+
+3. Filet de sécurité : un joueur signalé dans un véhicule INCONNU est
+   désormais dessiné quand même, à sa dernière position. Plus jamais de
+   joueur invisible, même si la synchronisation échoue.
+
+Vérifié en test : avant, 0 sprite dessiné pour le joueur en véhicule
+inconnu (fantôme) ; après, il est bien rendu.
+
+
+CONTENU
+  index_kles.html      carte 1 — correctif véhicules + redirection /play
+  index_udachne.html   carte 2 — idem
+  menu.html            menu web (identique au menu de l'application)
+  server.py            avec la route /play déjà ajoutée
+
+À POUSSER SUR GITHUB : ces 4 fichiers. Render redéploie tout seul.
+
+LIEN À PARTAGER
+  https://wareast-map-trench.onrender.com/play
+
+
+NOTE SUR LES COMPTES
+Tu as remarqué que les joueurs web ne peuvent pas créer de compte. C'est
+normal : l'inscription passe par SERVER_API, qui pointe sur le service
+KLESIVKA. Si le service dort au moment de l'inscription, la requête
+échoue silencieusement. Dis-moi si tu veux que je regarde — c'est un
+sujet à part, indépendant de ce correctif.
