@@ -1,57 +1,41 @@
-WarEast.io v6.3
+WarEast.io v6.4
 ================
 
-1. DÉFENSEURS IA RETIRÉS
-   Le système de bots qui apparaissaient à la capture d'un point est
-   désactivé, comme tu l'as demandé. Les seuls bots sont désormais TES
-   renforts, ceux que tu déploies toi-même.
+1. LES 300 TICKETS — CORRIGE
+   C'etait ma faute. Ton client etait bien regle sur 25, mais quand j'ai
+   ajoute la persistance cote serveur j'y ai mis 300 par defaut. Et comme
+   le client interroge le serveur a la connexion, le 300 ecrasait ton 25 a
+   chaque fois. Le serveur est maintenant sur 25, comme le client.
 
-2. RENFORT À 15 BRAVES (au lieu de 50)
-   Un seul kill suffit désormais pour rappeler du monde.
-   Vérifié : 40 Braves -> 25 après déploiement de 2 renforts.
+   Note : le serveur garde en memoire le score de la partie EN COURS. Si
+   tu es a 12-19 au moment du deploiement, il restera a 12-19. Il repassera
+   a 25-25 a la premiere fin de manche, ou tu peux forcer un redemarrage du
+   service Render pour repartir a neuf tout de suite.
 
-3. LES TICKETS SONT DE NOUVEAU AFFICHÉS
-   C'était bien un bug de ma part : en v5.5, quand j'ai nettoyé le HUD,
-   ma règle CSS masquait le bloc d'infos ET les tickets qui vivaient
-   dedans. Ils n'ont jamais cessé de fonctionner, ils étaient invisibles.
+2. BANDEAU DES TICKETS PLUS PETIT
+   Il mordait sur la minicarte. Il fait maintenant 105 px de large au lieu
+   de 180, et s'arrete a 7 px de la minicarte sur un ecran de telephone.
+   Verifie sur ton S25 : hamburger a gauche, bandeau au centre, minicarte a
+   droite, sans que rien ne se touche.
 
-   Nouveau bandeau en haut au centre, entre le bouton menu et la
-   minicarte : 🇺🇦 25 – 25 🇷🇺, mis à jour en direct.
+3. UN KILL VAUT 15 BRAVES (au lieu de 10)
+   Applique a TOUS les kills, joueurs comme renforts : tuer un bot rapporte
+   exactement autant que tuer un vrai joueur, c'est ce que tu voulais.
+   Le texte flottant affiche desormais +15.
 
-4. ANIMATION DES RENFORTS CORRIGÉE
-   Le problème que tu décrivais : quand tu avançais lentement, tes bots
-   faisaient des micro-arrêts et leur animation se coupait en boucle.
-   Elle repartait normalement dès que tu courais.
+4. UN RENFORT QUI TOMBE COUTE UN TICKET
+   Quand un de tes renforts meurt, son camp perd un ticket, exactement
+   comme quand un vrai joueur tombe. La perte est diffusee aux autres
+   joueurs et declenche la verification de fin de manche.
+   Verifie : 25 -> 24 a la mort d'un renfort.
 
-   Cause : l'animation ne tournait QUE sur les frames où le bot bougeait
-   vraiment. Maintenant elle se maintient 0,35 s après le dernier
-   déplacement, et sa cadence est calée sur LA VITESSE DU BOT, jamais sur
-   la tienne. Plus de saccades, que tu marches ou que tu sprintes.
+   Consequence a garder en tete : avec 25 tickets et des renforts a 15
+   Braves, les manches vont etre COURTES. Deux renforts perdus, c'est deja
+   2 tickets sur 25. C'est peut-etre exactement ce que tu veux pour tester,
+   mais si les parties s'enchainent trop vite, il suffit de monter WIN_TIX
+   des deux cotes : dans server.py (WIN_TIX = 25) ET dans les deux
+   index_*.html (WIN_TIX=25). Les deux doivent etre identiques, sinon on
+   retombe sur le bug du point 1.
 
-5. LES RENFORTS AVANCENT SUR L'ENNEMI
-   Avant, en combat, ils faisaient uniquement des pas de côté : deux
-   groupes se tiraient dessus à 300 unités sans jamais se rapprocher.
-   Maintenant ils progressent tant qu'ils sont à plus de 85 unités, avec
-   un léger biais latéral pour ne pas foncer en ligne droite, et
-   contournent les obstacles. Au contact, ils reprennent le pas de côté
-   pour ne pas rester une cible fixe. Ils ne s'éloignent jamais de plus de
-   230 unités de toi.
 
-   Vérifié : ennemi à 300 -> les renforts se rapprochent à 102.
-
-6. PERSISTANCE DE LA PARTIE (déjà en place, conservée)
-   Tickets ET propriété des objectifs sont conservés côté serveur. Tu
-   quittes à 17h, tu reviens à 18h : même partie, même score, mêmes points
-   capturés. Quand une équipe atteint 0, l'hôte diffuse le reset à tout le
-   monde et la partie repart proprement.
-
-   Les cadavres restent jusqu'au redémarrage de manche. Les véhicules
-   disparaissent après un délai, comme avant.
-
-7. LIEN WEB ET APPLICATION IDENTIQUES
-   Le menu servi sur /play est le même fichier que celui de l'application.
-   Seule différence connue : la création de compte échoue si le service
-   dormait au moment de la requête. Avec le réveil programmé de 16h à
-   minuit, ce cas disparaît sur la plage de jeu.
-
-Voir A_FAIRE_DE_TON_COTE.txt pour la mise en route.
+A POUSSER SUR GITHUB : les 4 fichiers.

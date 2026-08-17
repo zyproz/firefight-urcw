@@ -29,7 +29,7 @@ RELAY_EVENTS = ['pos', 'sfx', 'veh_spawn', 'shot', 'gren', 'expl', 'hit', 'heal'
 # Tickets conserves ICI, cote serveur : ils survivent au depart de tous les
 # joueurs. Un joueur qui rejoint une partie entamee recupere l'etat en cours
 # au lieu de repartir de zero.
-WIN_TIX = 300
+WIN_TIX = 25
 game_tickets = {'UA': WIN_TIX, 'RU': WIN_TIX}
 game_caps = {}          # id du point -> 'UA' / 'RU' / None
 

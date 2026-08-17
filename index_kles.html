@@ -172,14 +172,14 @@ body{background:#0A0D08;overflow:hidden;font-family:'Courier New',monospace;user
    vivent aussi dans #htl, il ne faut surtout pas les toucher */
 #hhp,#hpo,#htix,#hammo,#hcls{display:none!important}
 /* Bandeau des tickets, en haut au centre entre le menu et la minicarte */
-#tixBar{position:fixed;top:8px;left:50%;transform:translateX(-50%);z-index:62;
- display:flex;align-items:center;gap:9px;padding:6px 14px;
- background:rgba(0,0,0,0.62);border:1px solid rgba(255,255,255,0.22);
- border-radius:9px;font-family:'Courier New',monospace;pointer-events:none}
-#tixBar .fl{font-size:15px;line-height:1}
-#tixBar .n{font-size:15px;font-weight:bold;letter-spacing:1px;min-width:26px;text-align:center}
+#tixBar{position:fixed;top:6px;left:50%;transform:translateX(-50%);z-index:62;
+ display:flex;align-items:center;gap:5px;padding:3px 8px;
+ background:rgba(0,0,0,0.55);border:1px solid rgba(255,255,255,0.18);
+ border-radius:6px;font-family:'Courier New',monospace;pointer-events:none}
+#tixBar .fl{font-size:11px;line-height:1}
+#tixBar .n{font-size:12px;font-weight:bold;letter-spacing:0;min-width:17px;text-align:center}
 #tixUA{color:#5599FF}#tixRU{color:#FF5555}
-#tixBar .sep{color:rgba(255,255,255,0.35);font-size:13px}
+#tixBar .sep{color:rgba(255,255,255,0.3);font-size:10px}
 #htl{background:none!important;border:none!important;padding:0!important;gap:0!important}
 #micBtn,#vcPerm,#hspk{display:none!important}
 #hmbtn{position:fixed!important;top:8px!important;left:8px!important;z-index:60!important;
@@ -905,7 +905,7 @@ var _bravesStart=0;
 function dBravesLiveUpdate(){
   var el=document.getElementById('db_braves');
   if(!el)return;
-  var earned=myMatchStats.kills*10+myMatchStats.vehicles*20+myMatchStats.captures*15-myMatchStats.deaths*20;
+  var earned=myMatchStats.kills*15+myMatchStats.vehicles*20+myMatchStats.captures*15-myMatchStats.deaths*20;
   var spent=(typeof _reconSpent!=='undefined'?_reconSpent:0)+(typeof _strikeSpent!=='undefined'?_strikeSpent:0);
   var total=Math.max(0,_bravesStart+earned-spent);
   el.textContent='🎖️ '+total+' Braves';
@@ -2147,6 +2147,13 @@ function netConnect(){
         if(bot.hp<=0){
           bot.hp=0;
           showNotif('☠️ Un renfort est tombé');
+          // Un renfort compte comme un homme : son camp perd un ticket,
+          // exactement comme quand un vrai joueur tombe.
+          if(myTeam&&tickets[myTeam]!==undefined){
+            tickets[myTeam]=Math.max(0,tickets[myTeam]-1);
+            chan&&socket.emit('tix',{UA:tickets.UA,RU:tickets.RU});
+            updateHUD();checkWin();
+          }
           socket.emit('pos',{id:bot.id,name:bot.name||'Renfort',x:bot.x,y:bot.y,dir:bot.dir,
             team:myTeam,cls:bot.cls||myCls,hp:0,dead:true,reg:myRegiment,tape:myTape,isBot:true,ownerId:myId});
           setTimeout(()=>{myBots=myBots.filter(bb=>bb.id!==bot.id);},4000);
@@ -2178,7 +2185,7 @@ function netConnect(){
       if(!_allCorpses.find(c=>c.cid===d.cid)){
         _allCorpses.push({cid:d.cid,x:d.x,y:d.y,team:d.team,cls:d.cls||'fusil',
           name:d.name||'?',angle:d.angle||0,blood:d.blood||28,df:d.df||0,reg:d.reg||null});
-        if(d.killedBy===myId){myMatchStats.kills++;spawnFloatText(d.x,d.y,'+10','#FFD84D','KILL','#FF4444');dBravesLiveUpdate();}
+        if(d.killedBy===myId){myMatchStats.kills++;spawnFloatText(d.x,d.y,'+15','#FFD84D','KILL','#FF4444');dBravesLiveUpdate();}
       }
     });
     socket.on('tix',d=>{if(d)tickets=d;updateHUD();});
@@ -3382,7 +3389,7 @@ function dbShowTab(tab){
 }
 let reconActive=false,_reconSpent=0,_strikeSpent=0;
 function _curBravesLive(){
-  return Math.max(0,_bravesStart+myMatchStats.kills*10+myMatchStats.vehicles*20+myMatchStats.captures*15-myMatchStats.deaths*20-_reconSpent-_strikeSpent);
+  return Math.max(0,_bravesStart+myMatchStats.kills*15+myMatchStats.vehicles*20+myMatchStats.captures*15-myMatchStats.deaths*20-_reconSpent-_strikeSpent);
 }
 const PLANE_IMGS={
   ru:new Image(),
