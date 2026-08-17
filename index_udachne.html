@@ -3278,7 +3278,15 @@ function doRespawn(){
 }
 
 function checkWin(){
-  _corpses=[];deadBodies=[];remoteBodies=[];_piste=[]; // Clear corpses on game restart
+  _corpses=[];deadBodies=[];remoteBodies=[];_piste=[];
+  AI=[];   // les defenseurs disparaissent a la fin de manche
+  // L'hote diffuse le reset : la partie repart pour TOUT LE MONDE, meme
+  // si le joueur qui a declenche la victoire quitte juste apres.
+  if(AI_HOST){
+    setTimeout(()=>{
+      chan&&socket.emit('reset',{tUA:WIN_TIX,tRU:WIN_TIX});
+    },10000);
+  }
   let w=tickets.UA<=0?'RU':'UA';
   showNotif((w==='UA'?'🇺🇦 UKRAINE':'🇷🇺 RUSSIE')+' VICTOIRE! Reset 10s...');
   setTimeout(()=>{tickets={UA:WIN_TIX,RU:WIN_TIX};CAPS.forEach(c=>{c.team=null;c.capProg=0;});updateHUD();},10000);
@@ -3306,6 +3314,7 @@ function updateCapture(dt){
       if(myIn&&inTeam===myTeam){myMatchStats.captures++;spawnFloatText(px,py,'+15','#FFD84D','OBJECTIF','#4488FF');dBravesLiveUpdate();}
       showNotif(`🚩 Objectif ${cp.id} (${cp.name}) capturé! ${inTeam==='UA'?'🇺🇦':'🇷🇺'}`);
       updateHUD();chan&&socket.emit('cap',{id:cp.id,team:inTeam,prog:0});
+      try{aiSpawnDefenseurs(cp.id,inTeam);}catch(e){}
     }
   });
 }
@@ -3539,6 +3548,7 @@ function netConnect(){
     socket.on('hit',d=>{
       if(!d)return;
       if(d.target===myId){takeDamage(d.dmg,d.from);return;}
+      if(String(d.target).indexOf('ai_')===0){ if(aiEncaisse(d.target,d.dmg,d.from))return; }
       let bot=myBots.find(b=>b.id===d.target);
       if(bot&&bot.hp>0){
         bot.hp-=d.dmg;
@@ -3552,7 +3562,7 @@ function netConnect(){
       }
     });
     socket.on('heal',d=>{if(!d||d.target!==myId)return;php=Math.min(pMaxHp,php+d.amt);updateHUD();showNotif('💉 +'+d.amt+'PV!');});
-    socket.on('cap',d=>{if(!d)return;let cp=CAPS.find(c=>c.id===d.id);if(cp){cp.team=d.team;cp.capProg=0;updateHUD();}});
+    socket.on('cap',d=>{if(!d)return;let cp=CAPS.find(c=>c.id===d.id);if(cp){cp.team=d.team;cp.capProg=0;updateHUD();}try{aiSpawnDefenseurs(d.id,d.team);}catch(e){}});
     socket.on('died',d=>{
       if(!d)return;
       if(remotes[d.id])Object.assign(remotes[d.id],{dead:true,deadX:d.x,deadY:d.y,deadAngle:d.angle||0,bloodR:30,deadInv:d.inv||{}});
@@ -4865,6 +4875,7 @@ function pointDerriere(recul){
   return {x:_piste[0].x,y:_piste[0].y};
 }
 function updateBots(dt){
+  try{aiUpdate(dt);}catch(e){}
   majPiste();
   if(!myBots.length)return;
   // Point de suivi "retarde" (lissage exponentiel) - cree le petit temps de latence naturel
@@ -5341,6 +5352,209 @@ document.addEventListener('keydown',e=>{
   if(e.code==='KeyF'&&lootTarget)openInv(true,lootTarget);
 });
 window.addEventListener('beforeunload',()=>{if(chan)socket.emit('bye',{id:myId});});
+
+// ═══════════════════════════════════════════════════════════════════
+// ── v6.0 — DÉFENSEURS IA AUX OBJECTIFS ────────────────────────────
+// Un seul client (l'hôte) simule les défenseurs et les diffuse comme des
+// joueurs normaux (ids 'ai_*'). Aucun changement de rendu : le relais du
+// serveur les renvoie à tout le monde, y compris à l'hôte, et le code
+// existant des joueurs distants les affiche déjà.
+// ═══════════════════════════════════════════════════════════════════
+var AI=[];                       // défenseurs simulés (uniquement chez l'hôte)
+var AI_HOST=false;               // suis-je l'hôte ?
+var AI_PAR_POINT=3;              // défenseurs par objectif capturé
+var AI_RAYON=155;                // ~22 m : rayon de garde autour du point
+var AI_VUE=430;                  // distance de détection d'un ennemi
+var AI_PORTEE=340;               // portée de tir
+var AI_VIT=46;                   // vitesse de déplacement
+var _aiT=0,_aiHostT=0,_aiDiffT=0;
+
+// ── Élection de l'hôte ────────────────────────────────────────────
+// Règle : le plus petit identifiant parmi les vrais joueurs connectés.
+// Déterministe, donc tout le monde arrive à la même conclusion sans
+// négociation. Si l'hôte part, le suivant reprend automatiquement.
+function aiElireHote(){
+  let ids=[myId];
+  Object.values(remotes).forEach(r=>{
+    if(!r||!r.id)return;
+    let rid=String(r.id);
+    if(rid.indexOf('ai_')===0)return;               // pas les IA
+    if(myBots.some(b=>b.id===rid))return;           // pas les renforts
+    if(rid.charAt(0)!=='p')return;                  // seulement les vrais
+    ids.push(rid);                                  // identifiants joueurs
+  });
+  ids.sort();
+  let etait=AI_HOST;
+  AI_HOST=(ids[0]===myId);
+  if(AI_HOST&&!etait){
+    // On vient de prendre la main : on récupère les IA déjà sur le
+    // terrain à partir de ce qu'on a reçu, pour ne pas les perdre.
+    Object.values(remotes).forEach(r=>{
+      if(r&&String(r.id).indexOf('ai_')===0&&!r.dead&&!AI.some(a=>a.id===r.id)){
+        AI.push({id:r.id,team:r.team,cls:r.cls||'fusil',reg:r.reg||null,
+          x:r.x,y:r.y,dir:r.dir||0,hp:r.hp||100,
+          capId:(String(r.id).split('_')[1]||null),
+          fireT:0,walkFr:0,walkT:0,shootFr:0,shootT:0,shootHold:0,bouge:false});
+      }
+    });
+  }
+}
+
+// ── Apparition de 3 défenseurs sur un point capturé ───────────────
+function aiSpawnDefenseurs(capId,team){
+  if(!AI_HOST)return;
+  let cp=CAPS.find(c=>String(c.id)===String(capId));
+  if(!cp)return;
+  // on retire les anciens défenseurs de ce point (l'autre camp l'a pris)
+  AI=AI.filter(a=>String(a.capId)!==String(capId));
+  const REGS={UA:['regular','azov','legion'],RU:['ru_regular','wagner']};
+  const CLASSES=['fusil','fusil','medic'];
+  for(let i=0;i<AI_PAR_POINT;i++){
+    let ang=(i/AI_PAR_POINT)*6.283+Math.random();
+    let r=45+Math.random()*45;
+    let x=cp.wx+Math.cos(ang)*r, y=cp.wy+Math.sin(ang)*r;
+    // si le point est en tranchée, le défenseur s'y place aussi
+    if(typeof isInTrench==='function'&&isInTrench(cp.wx,cp.wy)&&!isInTrench(x,y)){
+      let sp=(typeof findNearestInTrench==='function')?findNearestInTrench(x,y,160):null;
+      if(sp){x=sp.x;y=sp.y;}
+    }
+    let regs=REGS[team]||REGS.UA;
+    AI.push({
+      id:'ai_'+capId+'_'+i+'_'+Math.random().toString(36).substr(2,3),
+      capId:capId, team:team, cls:CLASSES[i%CLASSES.length],
+      reg:regs[i%regs.length],
+      x:x, y:y, dir:Math.random()*6.283,
+      hp:(CLS[CLASSES[i%CLASSES.length]]?CLS[CLASSES[i%CLASSES.length]].hp:100),
+      fireT:Math.random()*0.5, walkFr:~~(Math.random()*12), walkT:0,
+      shootFr:0, shootT:0, shootHold:0, bouge:false,
+      ancreX:x, ancreY:y
+    });
+  }
+}
+
+// ── Cible : joueurs adverses, y compris les renforts locaux ───────
+function aiCiblesAdverses(a){
+  let out=[];
+  if(!pDead&&myTeam&&myTeam!==a.team)out.push({x:px,y:py,id:myId});
+  Object.values(remotes).forEach(r=>{
+    if(!r||r.dead||r.team===a.team)return;
+    if(String(r.id).indexOf('ai_')===0)return;   // les IA ne se tirent pas dessus entre elles
+    out.push({x:r.x,y:r.y,id:r.id});
+  });
+  myBots.forEach(b=>{ if(b.hp>0&&myTeam!==a.team)out.push({x:b.x,y:b.y,id:b.id}); });
+  return out;
+}
+
+function aiUpdate(dt){
+  _aiHostT-=dt;
+  if(_aiHostT<=0){_aiHostT=2;aiElireHote();}
+  if(!AI_HOST||!gameOn){return;}
+
+  AI.forEach(a=>{
+    if(a.hp<=0)return;
+    let cp=CAPS.find(c=>String(c.id)===String(a.capId));
+    // Le point est retombé à l'adversaire → les défenseurs se retirent
+    if(cp&&cp.team&&cp.team!==a.team){a.hp=0;return;}
+
+    let cibles=aiCiblesAdverses(a);
+    let cible=null,bd=AI_VUE;
+    cibles.forEach(c=>{
+      let d=Math.hypot(c.x-a.x,c.y-a.y);
+      if(d<bd){bd=d;cible=c;}
+    });
+
+    if(cible){
+      // Viser
+      let ang=Math.atan2(cible.y-a.y,cible.x-a.x);
+      let diff=((ang-a.dir+Math.PI*3)%(Math.PI*2))-Math.PI;
+      a.dir+=diff*Math.min(1,dt*7);
+      // AVANCER vers l'ennemi : c'est ce qui évite les combats figés.
+      // Il ne s'éloigne jamais de plus de AI_RAYON de son point.
+      let distAncre=cp?Math.hypot(a.x-cp.wx,a.y-cp.wy):0;
+      if(bd>95&&distAncre<AI_RAYON){
+        let nx=a.x+Math.cos(a.dir)*AI_VIT*dt, ny=a.y+Math.sin(a.dir)*AI_VIT*dt;
+        if(typeof isBlocked!=='function'||!isBlocked(nx,ny)){a.x=nx;a.y=ny;a.bouge=true;}
+        else{
+          // contourner l'obstacle plutôt que rester bloqué contre
+          for(let b of [0.7,-0.7,1.4,-1.4]){
+            let mx=a.x+Math.cos(a.dir+b)*AI_VIT*dt, my=a.y+Math.sin(a.dir+b)*AI_VIT*dt;
+            if(!isBlocked(mx,my)){a.x=mx;a.y=my;a.bouge=true;break;}
+          }
+        }
+      } else a.bouge=false;
+      // Tirer par rafales
+      a.fireT-=dt;
+      if(a.repos>0)a.repos-=dt;
+      else if(a.fireT<=0&&bd<AI_PORTEE&&Math.abs(diff)<0.4){
+        a.rafale=(a.rafale||0)+1;
+        if(a.rafale>=3+~~(Math.random()*3)){a.rafale=0;a.repos=0.8+Math.random()*1.2;}
+        a.fireT=0.15+Math.random()*0.1;
+        a.shootHold=0.24;
+        let w=WPN.AK74M;
+        let ec=(Math.random()-0.5)*0.07;
+        let bal={x:a.x,y:a.y,dx:Math.cos(a.dir+ec)*w.bSpd,dy:Math.sin(a.dir+ec)*w.bSpd,
+          team:a.team,dmg:w.dmg,expl:0,r:w.bSz,col:w.col,life:AI_PORTEE/w.bSpd,owner:a.id};
+        bullets.push(bal);
+        chan&&socket.emit('shot',bal);
+      }
+    } else {
+      // Pas d'ennemi : revenir tenir le point
+      let tx=cp?cp.wx:a.ancreX, ty=cp?cp.wy:a.ancreY;
+      let d=Math.hypot(tx-a.x,ty-a.y);
+      if(d>AI_RAYON*0.62){
+        a.dir=Math.atan2(ty-a.y,tx-a.x);
+        let nx=a.x+Math.cos(a.dir)*AI_VIT*0.75*dt, ny=a.y+Math.sin(a.dir)*AI_VIT*0.75*dt;
+        if(typeof isBlocked!=='function'||!isBlocked(nx,ny)){a.x=nx;a.y=ny;a.bouge=true;}
+        else a.bouge=false;
+      } else {
+        a.bouge=false;
+        a.balayT=(a.balayT||0)-dt;
+        if(a.balayT<=0){a.balayT=1.5+Math.random()*2.5;a.dirCible=Math.random()*6.283;}
+        if(a.dirCible!==undefined){
+          let df=((a.dirCible-a.dir+Math.PI*3)%(Math.PI*2))-Math.PI;
+          a.dir+=df*Math.min(1,dt*1.5);
+        }
+      }
+    }
+    // Animation, exactement comme un joueur
+    if(a.bouge){a.walkT+=dt;if(a.walkT>1/WALK_FPS){a.walkT-=1/WALK_FPS;a.walkFr=(a.walkFr+1)%12;}}
+    else{a.walkT=0;a.walkFr=0;}
+    a.shootHold=Math.max(0,a.shootHold-dt);
+    if(a.shootHold>0){a.shootT+=dt;if(a.shootT>1/12){a.shootT-=1/12;a.shootFr=(a.shootFr+1)%4;}}
+    else a.shootFr=0;
+  });
+
+  // Retirer les morts
+  AI=AI.filter(a=>a.hp>0);
+
+  // Diffusion à 10 Hz : les autres clients les affichent comme des joueurs
+  _aiDiffT-=dt;
+  if(_aiDiffT<=0){
+    _aiDiffT=0.1;
+    AI.forEach(a=>{
+      chan&&socket.emit('pos',{id:a.id,name:'',x:a.x,y:a.y,dir:a.dir,
+        team:a.team,cls:a.cls,hp:a.hp,dead:false,inVeh:null,
+        moving:a.bouge,wfr:a.walkFr,sfr:a.shootFr,reg:a.reg,ai:true});
+    });
+  }
+}
+
+// ── Dégâts reçus par une IA (appelé depuis le handler 'hit') ──────
+function aiEncaisse(targetId,dmg,from){
+  if(!AI_HOST)return false;
+  let a=AI.find(x=>x.id===targetId);
+  if(!a||a.hp<=0)return false;
+  a.hp-=dmg;
+  if(a.hp<=0){
+    a.hp=0;
+    // 'died' avec killedBy : le tireur gagne ses Braves automatiquement,
+    // exactement comme pour un vrai joueur.
+    chan&&socket.emit('died',{id:a.id,x:a.x,y:a.y,team:a.team,cls:a.cls,
+      name:'',angle:a.dir,inv:{},df:0,reg:a.reg,killedBy:from});
+    AI=AI.filter(x=>x.id!==a.id);
+  }
+  return true;
+}
 
 // ── INIT ──────────────────────────────────────────────────────────
 // selT et selReg initialisés par le joueur via le menu
