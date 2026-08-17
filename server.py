@@ -84,6 +84,13 @@ def add_cors_headers(response):
 def index():
     return send_from_directory('.', MAP_FILE)
 
+# Menu complet (compte, choix de carte, Braves) pour les joueurs qui
+# arrivent par un lien web : iPhone, PC, lien partage.
+# Adresse : https://<ton-service>.onrender.com/play
+@app.route('/play')
+def play_menu():
+    return send_from_directory('.', 'menu.html')
+
 @app.route('/ping')
 def ping():
     return jsonify({'status': 'ok'})

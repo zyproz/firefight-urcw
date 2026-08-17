@@ -1,6 +1,20 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
+<script>
+/* WEB : si on arrive sur le jeu sans etre passe par le menu (lien partage,
+   joueur iPhone), on redirige vers le menu complet. L'application native
+   passe TOUJOURS les parametres, elle n'est donc jamais concernee. */
+(function(){
+  try{
+    var q=new URLSearchParams(window.location.search);
+    if(!q.get('team')||!q.get('pseudo')){
+      window.location.replace('/play'+window.location.hash);
+    }
+  }catch(e){}
+})();
+</script>
+
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
 <meta name="mobile-web-app-capable" content="yes">

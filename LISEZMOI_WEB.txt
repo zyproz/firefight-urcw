@@ -1,0 +1,56 @@
+WarEast.io — accès web pour les joueurs iPhone (et PC)
+=======================================================
+
+LE PROBLÈME
+Les joueurs qui cliquaient sur le lien Render tombaient directement dans
+la partie, sur l'ancien menu de choix de faction intégré au jeu. Pas de
+compte, pas de Braves, pas de choix de carte.
+
+LA SOLUTION
+Ton menu d'application est un fichier HTML autonome : aucune dépendance à
+Capacitor, aucune API native (vérifié). Il peut donc être servi tel quel
+par Render, et les joueurs web obtiennent exactement la même expérience
+que dans l'application.
+
+
+CE QU'IL Y A DANS CE DOSSIER
+  menu.html              le menu complet, à pousser sur GitHub
+  index_kles.html        carte 1, avec la redirection ajoutée
+  index_udachne.html     carte 2, avec la redirection ajoutée
+  ROUTE_A_AJOUTER.py     les 3 lignes à coller dans server.py
+
+
+LES 3 ÉTAPES
+1. Colle la route /play de ROUTE_A_AJOUTER.py dans ton server.py
+2. Pousse menu.html, index_kles.html, index_udachne.html sur GitHub
+3. Attends le redéploiement Render
+
+LE LIEN À PARTAGER
+  https://wareast-map-trench.onrender.com/play
+
+Les deux services partagent le même server.py, donc l'adresse
+https://map-3-s025.onrender.com/play fonctionnera aussi.
+
+
+LA REDIRECTION AUTOMATIQUE
+Les anciens liens que tes joueurs ont déjà continuent de marcher : si
+quelqu'un ouvre l'adresse du jeu SANS paramètres, il est automatiquement
+renvoyé vers /play. Plus personne ne peut tomber sur l'ancien menu.
+
+L'APPLICATION N'EST PAS AFFECTÉE
+L'application native passe toujours pseudo, équipe, régiment, classe et
+Braves dans l'URL. La redirection ne se déclenche que si ces paramètres
+sont absents. Rien ne change pour tes joueurs Android.
+Le fichier www/index.html de l'application n'est pas modifié.
+
+
+VÉRIFIÉ EN TEST (Render simulé en local, navigateur mobile)
+  lien nu du jeu       -> redirigé vers /play, écran de compte affiché
+  menu web             -> KLESIVKA + UDACHNE listées, système Braves actif
+  lien avec paramètres -> pas de redirection, 16/16 tuiles chargées
+
+
+UN POINT À SAVOIR SUR iOS
+Safari bloque le son tant que le joueur n'a pas touché l'écran. Le son du
+jeu démarrera donc au premier appui, pas avant. C'est une contrainte iOS,
+il n'y a rien à corriger côté code.
