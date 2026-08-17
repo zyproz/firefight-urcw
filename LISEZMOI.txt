@@ -1,48 +1,57 @@
-WarEast.io v6.2 — persistance de la partie
-===========================================
+WarEast.io v6.3
+================
 
-CE QUI CHANGE
-La propriété des objectifs est maintenant conservée côté serveur, comme
-les tickets l'étaient déjà depuis la v6.1.
+1. DÉFENSEURS IA RETIRÉS
+   Le système de bots qui apparaissaient à la capture d'un point est
+   désactivé, comme tu l'as demandé. Les seuls bots sont désormais TES
+   renforts, ceux que tu déploies toi-même.
 
-LE PROBLÈME QUE ÇA RÈGLE
-Les tickets vivaient sur le serveur, mais savoir QUI tient chaque point
-restait uniquement dans la mémoire des joueurs. Concrètement : tout le
-monde quitte à 17h30, quelqu'un revient à 18h — il voyait le score en
-cours (par exemple Ukraine à 137) mais TOUS les objectifs neutres. Score
-avancé et carte vierge : ça a l'air cassé.
+2. RENFORT À 15 BRAVES (au lieu de 50)
+   Un seul kill suffit désormais pour rappeler du monde.
+   Vérifié : 40 Braves -> 25 après déploiement de 2 renforts.
 
-Maintenant le serveur mémorise aussi les captures au passage de
-l'événement 'cap', et les remet à zéro sur 'reset'. Un joueur qui rejoint
-récupère le score ET la situation sur la carte.
+3. LES TICKETS SONT DE NOUVEAU AFFICHÉS
+   C'était bien un bug de ma part : en v5.5, quand j'ai nettoyé le HUD,
+   ma règle CSS masquait le bloc d'infos ET les tickets qui vivaient
+   dedans. Ils n'ont jamais cessé de fonctionner, ils étaient invisibles.
 
-Vérifié en test :
-  partie en cours -> {"UA":137,"RU":300,"caps":{"1":"UA","2":"UA","3":"RU"}}
-  après relance   -> {"UA":300,"RU":300,"caps":{}}
+   Nouveau bandeau en haut au centre, entre le bouton menu et la
+   minicarte : 🇺🇦 25 – 25 🇷🇺, mis à jour en direct.
 
+4. ANIMATION DES RENFORTS CORRIGÉE
+   Le problème que tu décrivais : quand tu avançais lentement, tes bots
+   faisaient des micro-arrêts et leur animation se coupait en boucle.
+   Elle repartait normalement dès que tu courais.
 
-RÉPONSE À TA QUESTION SUR LES BOTS
-Ils ne sont pas bugués, mais il faut savoir comment ils fonctionnent :
-ce sont des joueurs qui les simulent, pas le serveur. Tant qu'au moins
-une personne est connectée, le rôle passe de l'un à l'autre et tout suit.
+   Cause : l'animation ne tournait QUE sur les frames où le bot bougeait
+   vraiment. Maintenant elle se maintient 0,35 s après le dernier
+   déplacement, et sa cadence est calée sur LA VITESSE DU BOT, jamais sur
+   la tienne. Plus de saccades, que tu marches ou que tu sprintes.
 
-Si le serveur est éveillé mais que PERSONNE n'est connecté, plus rien ne
-les simule : ils disparaissent. Un joueur qui arrive ensuite retrouve le
-score et les points capturés, mais pas les défenseurs — ils réapparaissent
-à la capture suivante.
+5. LES RENFORTS AVANCENT SUR L'ENNEMI
+   Avant, en combat, ils faisaient uniquement des pas de côté : deux
+   groupes se tiraient dessus à 300 unités sans jamais se rapprocher.
+   Maintenant ils progressent tant qu'ils sont à plus de 85 unités, avec
+   un léger biais latéral pour ne pas foncer en ligne droite, et
+   contournent les obstacles. Au contact, ils reprennent le pas de côté
+   pour ne pas rester une cible fixe. Ils ne s'éloignent jamais de plus de
+   230 unités de toi.
 
-Ce n'est pas un bug, c'est la conséquence directe d'un serveur qui ne fait
-que relayer. Pour des bots qui survivent à zéro joueur connecté, il
-faudrait les simuler dans server.py — c'est un chantier à part, à décider
-plus tard. En attendant, le système tient parfaitement dès qu'il y a du
-monde, ce qui est le cas entre 16h et minuit.
+   Vérifié : ennemi à 300 -> les renforts se rapprochent à 102.
 
+6. PERSISTANCE DE LA PARTIE (déjà en place, conservée)
+   Tickets ET propriété des objectifs sont conservés côté serveur. Tu
+   quittes à 17h, tu reviens à 18h : même partie, même score, mêmes points
+   capturés. Quand une équipe atteint 0, l'hôte diffuse le reset à tout le
+   monde et la partie repart proprement.
 
-CONTENU
-  index_kles.html      carte 1
-  index_udachne.html   carte 2
-  menu.html            menu web
-  server.py            tickets + captures persistés, route /play
-  REVEIL_16h_00h.txt   la marche à suivre pour le réveil programmé
+   Les cadavres restent jusqu'au redémarrage de manche. Les véhicules
+   disparaissent après un délai, comme avant.
 
-À POUSSER SUR GITHUB : les 4 fichiers.
+7. LIEN WEB ET APPLICATION IDENTIQUES
+   Le menu servi sur /play est le même fichier que celui de l'application.
+   Seule différence connue : la création de compte échoue si le service
+   dormait au moment de la requête. Avec le réveil programmé de 16h à
+   minuit, ce cas disparaît sur la plage de jeu.
+
+Voir A_FAIRE_DE_TON_COTE.txt pour la mise en route.

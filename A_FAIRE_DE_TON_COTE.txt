@@ -1,0 +1,38 @@
+CE QUE TU DOIS FAIRE, DANS L'ORDRE
+===================================
+
+1) POUSSER LES 4 FICHIERS SUR GITHUB
+   index_kles.html · index_udachne.html · menu.html · server.py
+   Render redéploie tout seul, compte 2 à 3 minutes.
+
+2) SUPPRIMER L'ANCIEN SERVICE AVDIIVKA (s'il existe encore)
+   Il consomme des heures gratuites pour rien, sur le même quota partagé.
+
+3) LE RÉVEIL PROGRAMMÉ 16h → minuit  (compte 5 minutes)
+   Sur cron-job.org, crée un compte, puis DEUX tâches :
+
+   Tâche 1
+     Title    : WarEast KLES
+     URL      : https://wareast-map-trench.onrender.com/ping
+     Schedule : Custom
+       Minutes : every 10 minutes
+       Hours   : 16,17,18,19,20,21,22,23
+       Days    : every day
+     Timezone : Europe/Brussels     ← sinon c'est en UTC, décalé de 2 h
+
+   Tâche 2 : idem avec
+     URL : https://map-3-s025.onrender.com/ping
+
+   Vérifie 10 minutes plus tard que "Last execution" est au vert.
+
+   Le calcul : 2 services × 8 h × 30 jours = 480 h sur les 750 autorisées.
+   Tu es tranquille, avec de la marge.
+
+   À 16h00 le premier ping réveille le serveur : ~50 secondes d'attente.
+   Ensuite tout est chaud jusqu'à minuit.
+
+4) TESTER À DEUX
+   Toi sur l'appli, un pote sur le lien :
+     https://wareast-map-trench.onrender.com/play
+   Fais tomber quelques tickets, capture un point, quittez tous les deux,
+   revenez : le score et les points capturés doivent être conservés.

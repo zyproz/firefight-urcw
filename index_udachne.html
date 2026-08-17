@@ -171,6 +171,15 @@ body{background:#0A0D08;overflow:hidden;font-family:'Courier New',monospace;user
 /* infos ciblees nommement : le menu (#dashboard) et le bouton (#hmbtn)
    vivent aussi dans #htl, il ne faut surtout pas les toucher */
 #hhp,#hpo,#htix,#hammo,#hcls{display:none!important}
+/* Bandeau des tickets, en haut au centre entre le menu et la minicarte */
+#tixBar{position:fixed;top:8px;left:50%;transform:translateX(-50%);z-index:62;
+ display:flex;align-items:center;gap:9px;padding:6px 14px;
+ background:rgba(0,0,0,0.62);border:1px solid rgba(255,255,255,0.22);
+ border-radius:9px;font-family:'Courier New',monospace;pointer-events:none}
+#tixBar .fl{font-size:15px;line-height:1}
+#tixBar .n{font-size:15px;font-weight:bold;letter-spacing:1px;min-width:26px;text-align:center}
+#tixUA{color:#5599FF}#tixRU{color:#FF5555}
+#tixBar .sep{color:rgba(255,255,255,0.35);font-size:13px}
 #htl{background:none!important;border:none!important;padding:0!important;gap:0!important}
 #micBtn,#vcPerm,#hspk{display:none!important}
 #hmbtn{position:fixed!important;top:8px!important;left:8px!important;z-index:60!important;
@@ -364,6 +373,11 @@ body{background:#0A0D08;overflow:hidden;font-family:'Courier New',monospace;user
   <button class="spawn" id="spawnBtn" style="display:none" onclick="doSpawn()">▶ SPAWN</button>
 </div>
 
+<div id="tixBar">
+  <span class="fl">🇺🇦</span><span class="n" id="tixUA">25</span>
+  <span class="sep">–</span>
+  <span class="n" id="tixRU">25</span><span class="fl">🇷🇺</span>
+</div>
 <div id="hud">
   <div id="htl">
     <div class="hb" id="hhp">❤️ 100</div>
@@ -414,7 +428,7 @@ body{background:#0A0D08;overflow:hidden;font-family:'Courier New',monospace;user
     </div>
     <div id="db_panel_renfort" style="display:none">
       <button id="db_reinf_btn" onclick="buyReinforcements()" style="width:100%;box-sizing:border-box;padding:12px;margin-bottom:8px;background:rgba(200,255,90,0.12);border:2px solid #C8FF5A;border-radius:8px;color:#C8FF5A;font-family:'Courier New',monospace;font-weight:bold;text-align:left">
-        🎖️ Demander du renfort<br><span style="font-size:9px;font-weight:normal;color:rgba(255,255,255,0.5)">2 coéquipiers vous suivent — 50 Braves</span>
+        🎖️ Demander du renfort<br><span style="font-size:9px;font-weight:normal;color:rgba(255,255,255,0.5)">2 coéquipiers vous suivent — 15 Braves</span>
       </button>
       <button id="db_recon_btn" onclick="buyRecon()" style="width:100%;box-sizing:border-box;padding:12px;margin-bottom:8px;background:rgba(68,136,255,0.12);border:2px solid #4488FF;border-radius:8px;color:#88BBFF;font-family:'Courier New',monospace;font-weight:bold;text-align:left">
         🛸 Drone de reconnaissance<br><span style="font-size:9px;font-weight:normal;color:rgba(255,255,255,0.5)">Révèle les ennemis 15s — 75 Braves</span>
@@ -3566,7 +3580,6 @@ function netConnect(){
     socket.on('hit',d=>{
       if(!d)return;
       if(d.target===myId){takeDamage(d.dmg,d.from);return;}
-      if(String(d.target).indexOf('ai_')===0){ if(aiEncaisse(d.target,d.dmg,d.from))return; }
       let bot=myBots.find(b=>b.id===d.target);
       if(bot&&bot.hp>0){
         bot.hp-=d.dmg;
@@ -3684,6 +3697,10 @@ function netConnect(){
 
 // ── HUD ───────────────────────────────────────────────────────────
 function updateHUD(){
+  // bandeau du haut : toujours a jour, meme quand le bloc d'infos est masque
+  let _tu=document.getElementById('tixUA'),_tr=document.getElementById('tixRU');
+  if(_tu)_tu.textContent=Math.max(0,~~tickets.UA);
+  if(_tr)_tr.textContent=Math.max(0,~~tickets.RU);
   document.getElementById('hhp').textContent=`❤️ ${php}/${pMaxHp}`;
   document.getElementById('hpi').style.width=(php/pMaxHp*100)+'%';
   document.getElementById('hpi').style.background=php>pMaxHp*.5?'#44CC44':php>pMaxHp*.25?'#FFAA00':'#FF2222';
@@ -4840,9 +4857,9 @@ function findNearestInTrench(targetX,targetY,maxR){
 let _botLagPx=null,_botLagPy=null,_botTrenchGraceT=0;
 function buyReinforcements(){
   let bal=_curBravesLive();
-  if(bal<50){showNotif('❌ Pas assez de Braves (besoin de 50)');return;}
+  if(bal<15){showNotif('❌ Pas assez de Braves (besoin de 15)');return;}
   if(myBots.length>0){showNotif('Renforts déjà sur le terrain !');return;}
-  _reconSpent+=50;dBravesLiveUpdate();
+  _reconSpent+=15;dBravesLiveUpdate();
   for(let i=0;i<2;i++){
     let rndName=BOT_NAMES[~~(Math.random()*BOT_NAMES.length)]+'_'+(1+~~(Math.random()*99));
     let rndCls=ALL_CLS[~~(Math.random()*ALL_CLS.length)];
@@ -4893,7 +4910,6 @@ function pointDerriere(recul){
   return {x:_piste[0].x,y:_piste[0].y};
 }
 function updateBots(dt){
-  try{aiUpdate(dt);}catch(e){}
   majPiste();
   if(!myBots.length)return;
   // Point de suivi "retarde" (lissage exponentiel) - cree le petit temps de latence naturel
@@ -4938,13 +4954,29 @@ function updateBots(dt){
       bot.state='combat';
       bot.dir=Math.atan2(nearestEnemy.y-bot.y,nearestEnemy.x-bot.x);
       let pd=Math.hypot(_botLagPx-bot.x,_botLagPy-bot.y);
-      if(pd>150){
+      if(pd>230){
+        // trop loin du joueur : il revient d'abord, il ne part pas seul
         let ma=Math.atan2(_botLagPy-bot.y,_botLagPx-bot.x);
-        mvx=Math.cos(ma)*botSpd*0.75;mvy=Math.sin(ma)*botSpd*0.75;
+        mvx=Math.cos(ma)*botSpd*0.85;mvy=Math.sin(ma)*botSpd*0.85;
+      } else if(nd>85){
+        // Il AVANCE sur l'ennemi au lieu de tirer sur place : c'est ce qui
+        // evitait les duels figes a distance. Avec un leger biais lateral
+        // pour ne pas foncer en ligne parfaitement droite.
+        let biais=Math.sin(Date.now()/700+bi*2)*0.35;
+        let ang=bot.dir+biais;
+        let nx=bot.x+Math.cos(ang)*botSpd*0.8*dt, ny=bot.y+Math.sin(ang)*botSpd*0.8*dt;
+        if(!isBlocked(nx,ny)){mvx=Math.cos(ang)*botSpd*0.8;mvy=Math.sin(ang)*botSpd*0.8;}
+        else{
+          for(let b of [0.8,-0.8,1.5,-1.5]){
+            let mx=bot.x+Math.cos(bot.dir+b)*botSpd*0.8*dt, my=bot.y+Math.sin(bot.dir+b)*botSpd*0.8*dt;
+            if(!isBlocked(mx,my)){mvx=Math.cos(bot.dir+b)*botSpd*0.8;mvy=Math.sin(bot.dir+b)*botSpd*0.8;break;}
+          }
+        }
       } else {
+        // au contact : pas de cote pour ne pas rester une cible fixe
         let strafe=Date.now()/500+bi*3;
-        mvx=Math.cos(bot.dir+Math.PI/2)*Math.sin(strafe)*botSpd*0.4;
-        mvy=Math.sin(bot.dir+Math.PI/2)*Math.sin(strafe)*botSpd*0.4;
+        mvx=Math.cos(bot.dir+Math.PI/2)*Math.sin(strafe)*botSpd*0.45;
+        mvy=Math.sin(bot.dir+Math.PI/2)*Math.sin(strafe)*botSpd*0.45;
       }
       bot.fireT-=dt;
       if(bot.fireT<=0){
@@ -5017,10 +5049,17 @@ function updateBots(dt){
     // Animation calee sur le deplacement reel, comme le joueur :
     // a l'arret -> pose arme, en mouvement -> cycle de marche.
     if(bot.walkT===undefined){bot.walkT=0;bot.walkFr=~~(Math.random()*12);bot.shootT=0;bot.shootFr=0;}
-    bot.isMoving=Math.hypot(mvx,mvy)>8;
+    let _v=Math.hypot(mvx,mvy);
+    // Maintien : tant qu'il a bouge dans les 0,35 s, on considere qu'il
+    // marche. Sans ca, les micro-arrets quand le joueur avance lentement
+    // hachaient l'animation.
+    if(_v>8)bot.moveHold=0.35; else bot.moveHold=Math.max(0,(bot.moveHold||0)-dt);
+    bot.isMoving=bot.moveHold>0;
     if(bot.isMoving){
+      // cadence calee sur SA vitesse a lui, jamais sur celle du joueur
+      let cad=WALK_FPS*Math.max(0.55,Math.min(1.35,_v/70));
       bot.walkT+=dt;
-      if(bot.walkT>1/WALK_FPS){bot.walkT-=1/WALK_FPS;bot.walkFr=(bot.walkFr+1)%12;}
+      if(bot.walkT>1/cad){bot.walkT-=1/cad;bot.walkFr=(bot.walkFr+1)%12;}
     }else{bot.walkT=0;bot.walkFr=0;}
     bot.shootHold=Math.max(0,(bot.shootHold||0)-dt);
     if(bot.shootHold>0){
@@ -5420,8 +5459,7 @@ function aiElireHote(){
 
 // ── Apparition de 3 défenseurs sur un point capturé ───────────────
 var _aiDernierSpawn={};
-function aiSpawnDefenseurs(capId,team){
-  if(!AI_HOST)return;
+function aiSpawnDefenseurs(capId,team){ return; /* v6.3 */
   // Garde anti-doublon : un meme point ne peut pas etre garni deux fois
   // en moins de 4 s, quelle que soit la voie qui declenche l'appel.
   let cle=String(capId)+'_'+team, now=Date.now();
@@ -5469,7 +5507,7 @@ function aiCiblesAdverses(a){
   return out;
 }
 
-function aiUpdate(dt){
+function aiUpdate(dt){ return; /* v6.3 : defenseurs retires */
   _aiHostT-=dt;
   if(_aiHostT<=0){_aiHostT=2;aiElireHote();}
   if(!AI_HOST||!gameOn){return;}
