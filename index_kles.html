@@ -315,8 +315,8 @@ body{background:#0A0D08;overflow:hidden;font-family:'Courier New',monospace;user
       <div class="reg-tape" style="background:#FFD700"></div>
     </div>
     <div class="reg-btn" id="rb_azov" onclick="selReg('azov')">
-      <img class="reg-emb" id="emb_azov" alt="AZOV">
-      <div class="reg-name">Rgt AZOV</div>
+      <img class="reg-emb" id="emb_azov" alt="31e BA">
+      <div class="reg-name">31e Brig. Assaut</div>
       <div class="reg-tape" style="background:#22CC44"></div>
     </div>
     <div class="reg-btn" id="rb_legion" onclick="selReg('legion')">
@@ -328,8 +328,8 @@ body{background:#0A0D08;overflow:hidden;font-family:'Courier New',monospace;user
   <!-- RU regiments -->
   <div class="reg-grid" id="reg_ru">
     <div class="reg-btn" id="rb_wagner" onclick="selReg('wagner')">
-      <img class="reg-emb" id="emb_wagner" alt="Wagner">
-      <div class="reg-name">Groupe Wagner</div>
+      <img class="reg-emb" id="emb_wagner" alt="ORION">
+      <div class="reg-name">Détach. ORION</div>
       <div class="reg-tape" style="background:#FF3333"></div>
     </div>
     <div class="reg-btn" id="rb_ru_regular" onclick="selReg('ru_regular')">
@@ -902,13 +902,13 @@ function initEmblems(){
 }
 const REGIMENTS={
   UA:{
-    regular:  {name:'Armée Régulière',short:'UA REG', tape:'#FFD700',icon:'🇺🇦',desc:'AK-74M · Ruban jaune'},
-    azov:     {name:'Régiment AZOV',  short:'AZOV',   tape:'#22CC44',icon:'⚡', desc:'Rgt spécialisé · Ruban vert'},
+    regular:  {name:'24e Brigade Méca.',short:'24e BM', tape:'#FFD700',icon:'🇺🇦',desc:'AK-74M · Ruban jaune'},
+    azov:     {name:'31e Brig. Assaut',short:'31e BA',   tape:'#22CC44',icon:'⚡', desc:'Brigade d\'assaut · Ruban vert'},
     legion:   {name:'Légion Intern.', short:'LÉGION',  tape:'#4488FF',icon:'🌐',desc:'Volontaires étrangers · Bleu'},
   },
   RU:{
-    wagner:     {name:'Groupe Wagner',  short:'WAGNER',  tape:'#FF3333',icon:'💀',desc:'PMC élite · Ruban rouge'},
-    ru_regular: {name:'Armée Régulière',short:'RU REG',  tape:'#DDDDDD',icon:'🇷🇺',desc:'Forces régulières · Blanc'},
+    wagner:     {name:'Détach. ORION',  short:'ORION',  tape:'#FF3333',icon:'💀',desc:'Détachement volontaire · Rouge'},
+    ru_regular: {name:'112e Rgt Motorisé',short:'112e RM',  tape:'#DDDDDD',icon:'🇷🇺',desc:'Forces régulières · Blanc'},
   }
 };
 let myName='Soldat',myTeam=null,myCls=null,myRegiment=null,myTape='#FFD700';
@@ -1825,7 +1825,7 @@ function doRespawn(){
 }
 
 function checkWin(){
-  _corpses=[];deadBodies=[];remoteBodies=[]; // Clear corpses on game restart
+  _corpses=[];deadBodies=[];remoteBodies=[];_piste=[]; // Clear corpses on game restart
   let w=tickets.UA<=0?'RU':'UA';
   showNotif((w==='UA'?'🇺🇦 UKRAINE':'🇷🇺 RUSSIE')+' VICTOIRE! Reset 10s...');
   setTimeout(()=>{tickets={UA:WIN_TIX,RU:WIN_TIX};CAPS.forEach(c=>{c.team=null;c.capProg=0;});updateHUD();},10000);
@@ -3367,15 +3367,50 @@ function buyReinforcements(){
     myBots.push({
       id:myId+'_bot'+i,
       name:rndName,cls:rndCls,
-      x:px+(Math.random()-0.5)*80,y:py+(Math.random()-0.5)*80,
+      // apparition en colonne derriere le joueur, jamais colle
+      x:px-Math.cos(pdir)*(ESPACEMENT_FILE*(i+1))+(Math.random()-0.5)*18,
+      y:py-Math.sin(pdir)*(ESPACEMENT_FILE*(i+1))+(Math.random()-0.5)*18,
       dir:pdir,hp:maxHp,maxHp:maxHp,state:'follow',fireT:0,inVehSeat:null,
-      offAng:Math.PI*0.7*(i%2===0?1:-1),offDist:45
+      rang:i,lateral:(i%2===0?1:-1)*(6+Math.random()*7),
+      offAng:0,offDist:45
     });
   }
-  showNotif('🎖️ 2 renforts '+(myRegiment?myRegiment:'')+' ont rejoint votre unité !');
+  let _rn=(REGIMENTS[myTeam]&&REGIMENTS[myTeam][myRegiment])?REGIMENTS[myTeam][myRegiment].short:'';
+  showNotif('🎖️ 2 renforts '+_rn+' ont rejoint votre unité !');
   toggleDashboard();
 }
+// ── PISTE DU JOUEUR ──────────────────────────────────────────────
+// On memorise le chemin reellement parcouru. Les bots le rejouent avec du
+// retard : ca donne la latence au demarrage, l'espacement en file, et
+// surtout ils epousent la courbe exacte des tranchees puisqu'ils marchent
+// la ou le joueur est deja passe.
+var ESPACEMENT_FILE=48;      // distance entre deux hommes de la colonne
+var _piste=[];
+function majPiste(){
+  let q=_piste[_piste.length-1];
+  let pas=q?Math.hypot(px-q.x,py-q.y):999;
+  if(pas>5){
+    _piste.push({x:px,y:py,d:(q?q.d+pas:0)});
+    if(_piste.length>500)_piste.shift();
+  }
+}
+// Point situe a `recul` unites en arriere le long de la piste
+function pointDerriere(recul){
+  if(_piste.length<2)return null;
+  let tete=_piste[_piste.length-1].d;
+  let cible=tete-recul;
+  if(cible<=_piste[0].d)return {x:_piste[0].x,y:_piste[0].y};
+  for(let i=_piste.length-1;i>0;i--){
+    if(_piste[i-1].d<=cible){
+      let a=_piste[i-1],b=_piste[i];
+      let t=(cible-a.d)/Math.max(0.001,b.d-a.d);
+      return {x:a.x+(b.x-a.x)*t,y:a.y+(b.y-a.y)*t};
+    }
+  }
+  return {x:_piste[0].x,y:_piste[0].y};
+}
 function updateBots(dt){
+  majPiste();
   if(!myBots.length)return;
   // Point de suivi "retarde" (lissage exponentiel) - cree le petit temps de latence naturel
   if(_botLagPx===null){_botLagPx=px;_botLagPy=py;}
@@ -3441,37 +3476,37 @@ function updateBots(dt){
       }
     } else {
       bot.state='follow';
-      // Ancrage MONDE : l'angle du bot ne depend plus de l'orientation du
-      // joueur, donc tourner sur soi-meme ne fait plus pivoter l'escouade.
-      if(bot.wAng===undefined){bot.wAng=Math.random()*Math.PI*2;bot.wDist=45+Math.random()*32;}
-      bot.wAng+=(Math.random()-0.5)*dt*0.55;
-      bot.wDist=Math.max(34,Math.min(88,bot.wDist+(Math.random()-0.5)*dt*15));
+      if(bot.rang===undefined)bot.rang=bi;
+      if(bot.lateral===undefined)bot.lateral=(bi%2===0?1:-1)*(6+Math.random()*7);
 
-      let distJ=Math.hypot(px-bot.x,py-bot.y);
-      const R_OK=90, R_MAX=140;
+      // Cible : le point de la piste situe N crans derriere le joueur.
+      let recul=ESPACEMENT_FILE*(bot.rang+1);
+      let cible=pointDerriere(recul);
+      if(!cible){
+        // piste trop courte (debut de partie) : colonne derriere le joueur
+        cible={x:px-Math.cos(pdir)*recul,y:py-Math.sin(pdir)*recul};
+      }
 
-      if(distJ>R_OK){
-        // trop loin : il rejoint un point autour du joueur, en suivant la
-        // tranchee si on est dedans
-        let tx=px+Math.cos(bot.wAng)*bot.wDist;
-        let ty=py+Math.sin(bot.wAng)*bot.wDist;
-        if(_escortTrench&&typeof findNearestInTrench==='function'){
-          let spot=findNearestInTrench(tx,ty,220);
-          if(spot){tx=spot.x;ty=spot.y;}
-        }
-        let dd=Math.hypot(tx-bot.x,ty-bot.y);
-        if(dd>12){
-          // joueur et bot ont la meme vitesse de base : sans coup de collier
-          // un bot decroche et ne revient jamais. Au-dela de 250 il accelere.
-          let urgence=distJ>250?1.35:(distJ>R_MAX?1:0.6);
-          bot.dir=Math.atan2(ty-bot.y,tx-bot.x);
-          let spd=Math.min(botSpd*urgence,dd/dt);
-          mvx=Math.cos(bot.dir)*spd;mvy=Math.sin(bot.dir)*spd;
-        }
+      // Si le joueur est en tranchee, la cible est forcee dans la tranchee.
+      // La piste y mene deja, ceci evite juste qu'un bot coupe par le champ.
+      if(_escortTrench&&typeof findNearestInTrench==='function'&&!isInTrench(cible.x,cible.y)){
+        let spot=findNearestInTrench(cible.x,cible.y,200);
+        if(spot)cible=spot;
+      }
+
+      let dd=Math.hypot(cible.x-bot.x,cible.y-bot.y);
+      if(dd>13){
+        bot.dir=Math.atan2(cible.y-bot.y,cible.x-bot.x);
+        // Vitesse progressive : au demarrage l'ecart est faible donc il
+        // part doucement (latence), puis il accelere pour rattraper.
+        // allure proportionnelle a l'ecart : il repart doucement (latence),
+        // puis accelere d'autant plus qu'il a de retard a rattraper.
+        // Equilibre atteint vers 20 unites de retard sur sa cible.
+        let allure=Math.min(1.75,0.5+dd/40);
+        let spd=Math.min(botSpd*allure,dd/dt);
+        mvx=Math.cos(bot.dir)*spd;mvy=Math.sin(bot.dir)*spd;
       } else {
-        // assez pres : il TIENT SA POSITION. Il se contente de balayer du
-        // regard, avec un decalage propre a chaque bot et reevalue de temps
-        // en temps -> plus de pose identique pour toute l'escouade.
+        // en position : il balaie du regard, decalage propre a chaque bot
         if(bot.lookOff===undefined){bot.lookOff=(Math.random()-0.5)*1.2;bot.lookT=Math.random()*2;}
         bot.lookT=(bot.lookT||0)+dt;
         if(bot.lookT>1.6+Math.random()*1.8){bot.lookT=0;bot.lookOff=(Math.random()-0.5)*1.5;}
@@ -3486,6 +3521,15 @@ function updateBots(dt){
       if(!isBlocked(nx,bot.y))bot.x=Math.max(8,Math.min(WW-8,nx));
       if(!isBlocked(bot.x,ny))bot.y=Math.max(8,Math.min(WH-8,ny));
     }
+    // Ecartement mutuel : deux bots ne peuvent pas se superposer
+    myBots.forEach(o=>{
+      if(o===bot||o.hp<=0)return;
+      let ex=bot.x-o.x,ey=bot.y-o.y,ed=Math.hypot(ex,ey);
+      if(ed<22&&ed>0.01){
+        let pousse=(22-ed)*0.5;
+        bot.x+=ex/ed*pousse;bot.y+=ey/ed*pousse;
+      }
+    });
     // Animation calee sur le deplacement reel, comme le joueur :
     // a l'arret -> pose arme, en mouvement -> cycle de marche.
     if(bot.walkT===undefined){bot.walkT=0;bot.walkFr=~~(Math.random()*12);bot.shootT=0;bot.shootFr=0;}
