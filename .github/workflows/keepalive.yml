@@ -1,0 +1,31 @@
+name: Reveil serveurs WarEast
+
+# Maintient les services Render eveilles sur la plage de jeu.
+#
+# ATTENTION : GitHub utilise l'heure UTC, pas l'heure belge.
+#   Ete  (CEST, UTC+2) : 14h UTC = 16h chez toi
+#   Hiver(CET,  UTC+1) : 15h UTC = 16h chez toi
+# La plage 14-22 UTC couvre donc 16h-00h en ete et 15h-23h en hiver.
+# Tu n'as rien a changer au passage a l'heure d'hiver.
+#
+# Volume : 9 h/jour x 2 services x 30 jours = 540 h sur les 750 gratuites
+# accordees par Render. Il te reste de la marge.
+
+on:
+  schedule:
+    - cron: '*/10 14-22 * * *'
+  workflow_dispatch:        # bouton pour lancer a la main depuis l'onglet Actions
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Reveiller Klesivka
+        run: |
+          curl -sS -m 90 -o /dev/null -w "KLES -> %{http_code} en %{time_total}s\n" \
+            https://wareast-map-trench.onrender.com/ping || echo "KLES injoignable"
+
+      - name: Reveiller Udachne
+        run: |
+          curl -sS -m 90 -o /dev/null -w "UDACHNE -> %{http_code} en %{time_total}s\n" \
+            https://map-3-s025.onrender.com/ping || echo "UDACHNE injoignable"
