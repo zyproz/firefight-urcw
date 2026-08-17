@@ -26,10 +26,35 @@ RELAY_EVENTS = ['pos', 'sfx', 'veh_spawn', 'shot', 'gren', 'expl', 'hit', 'heal'
                  'cap', 'died', 'corpse', 'corpse2', 'tix', 'reset', 'state',
                  'spawn', 'bye', 'blood', 'drone_hit', 'drone']
 
+# Tickets conserves ICI, cote serveur : ils survivent au depart de tous les
+# joueurs. Un joueur qui rejoint une partie entamee recupere l'etat en cours
+# au lieu de repartir de zero.
+WIN_TIX = 300
+game_tickets = {'UA': WIN_TIX, 'RU': WIN_TIX}
+game_caps = {}          # id du point -> 'UA' / 'RU' / None
+
+
+@app.route('/api/tickets')
+def api_tickets():
+    return jsonify({'UA': game_tickets['UA'], 'RU': game_tickets['RU'],
+                    'caps': game_caps})
+
+
 def _register_relay(event_name):
     @socketio.on(event_name)
     def _handler(data, event_name=event_name):
-        print(f'[RELAIS] {event_name} recu de {request.sid}, renvoye a {len(connected_players)} client(s)')
+        # On memorise les tickets au passage, sans rien changer au relais.
+        if event_name == 'tix' and isinstance(data, dict):
+            for camp in ('UA', 'RU'):
+                if isinstance(data.get(camp), (int, float)):
+                    game_tickets[camp] = int(data[camp])
+        elif event_name == 'reset' and isinstance(data, dict):
+            game_tickets['UA'] = int(data.get('tUA', WIN_TIX))
+            game_tickets['RU'] = int(data.get('tRU', WIN_TIX))
+            game_caps.clear()
+        elif event_name == 'cap' and isinstance(data, dict):
+            if data.get('id') is not None:
+                game_caps[str(data['id'])] = data.get('team')
         emit(event_name, data, broadcast=True, include_self=True)
 
 for _ev in RELAY_EVENTS:

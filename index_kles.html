@@ -2013,12 +2013,30 @@ function netConnect(){
   socket=io();
   socket.on('connect',()=>{
     chan=true;
+    // Les tickets vivent sur le serveur : on recupere l'etat en cours
+    // pour ne pas repartir de zero quand on rejoint une partie entamee.
+    fetch('/api/tickets',{cache:'no-cache'}).then(r=>r.json()).then(t=>{
+      if(t&&typeof t.UA==='number'&&typeof t.RU==='number'){
+        tickets.UA=t.UA;tickets.RU=t.RU;
+      }
+      // On recupere aussi QUI tient chaque point : sans ca, un joueur qui
+      // arrive apres que tout le monde soit parti voyait les tickets en
+      // cours mais tous les objectifs neutres.
+      if(t&&t.caps){
+        CAPS.forEach(c=>{
+          let v=t.caps[String(c.id)];
+          if(v==='UA'||v==='RU'){c.team=v;c.capProg=0;c.capTeam=null;}
+        });
+      }
+      updateHUD();
+    }).catch(()=>{});
     socket.on('pos',d=>{
       if(!d||d.id===myId||myBots.some(b=>b.id===d.id))return;
       // Nouveau joueur détecté → republier nos cadavres pour qu'il les voit
       let _isNew=!remotes[d.id];
       if(!remotes[d.id])remotes[d.id]={};
       Object.assign(remotes[d.id],d);
+      remotes[d.id]._vu=Date.now();   // horodatage pour le nettoyage
       if(_isNew&&chan&&gameOn){
         // Republier cadavres + état du jeu pour le nouveau joueur
         setTimeout(()=>{
@@ -3972,8 +3990,14 @@ function aiElireHote(){
 }
 
 // ── Apparition de 3 défenseurs sur un point capturé ───────────────
+var _aiDernierSpawn={};
 function aiSpawnDefenseurs(capId,team){
   if(!AI_HOST)return;
+  // Garde anti-doublon : un meme point ne peut pas etre garni deux fois
+  // en moins de 4 s, quelle que soit la voie qui declenche l'appel.
+  let cle=String(capId)+'_'+team, now=Date.now();
+  if(_aiDernierSpawn[cle]&&now-_aiDernierSpawn[cle]<4000)return;
+  _aiDernierSpawn[cle]=now;
   let cp=CAPS.find(c=>String(c.id)===String(capId));
   if(!cp)return;
   // on retire les anciens défenseurs de ce point (l'autre camp l'a pris)
@@ -4150,6 +4174,22 @@ setInterval(()=>{
       wx:v.wx,wy:v.wy,dir:v.dir,hp:v.hp});
   });
 },6000);
+
+// ── NETTOYAGE DES FANTOMES ──────────────────────────────────────
+// Tout joueur ou bot qui n'a plus donne signe de vie depuis 6 s est retire.
+// Ca rattrape les 'died' perdus, les deconnexions brutales (fermeture de
+// l'onglet, perte de reseau) et les bots dont l'hote a change.
+setInterval(()=>{
+  let now=Date.now();
+  Object.keys(remotes).forEach(id=>{
+    let r=remotes[id];
+    if(!r)return;
+    if(r._vu===undefined){r._vu=now;return;}
+    if(now-r._vu>6000){
+      delete remotes[id];
+    }
+  });
+},1500);
 
 // ── KEEPALIVE: ping server every 4min to prevent Render.com sleep ────────────
 (function(){

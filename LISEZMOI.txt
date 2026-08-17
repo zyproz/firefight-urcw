@@ -1,79 +1,48 @@
-WarEast.io v6.0 — défenseurs IA aux objectifs
-==============================================
+WarEast.io v6.2 — persistance de la partie
+===========================================
 
-CE QUE ÇA FAIT
-Quand un objectif est capturé, 3 défenseurs du camp qui l'a pris
-apparaissent autour du point et le tiennent. Ils bougent, tirent, avancent
-sur l'ennemi, et rapportent des Braves quand on les tue.
+CE QUI CHANGE
+La propriété des objectifs est maintenant conservée côté serveur, comme
+les tickets l'étaient déjà depuis la v6.1.
 
+LE PROBLÈME QUE ÇA RÈGLE
+Les tickets vivaient sur le serveur, mais savoir QUI tient chaque point
+restait uniquement dans la mémoire des joueurs. Concrètement : tout le
+monde quitte à 17h30, quelqu'un revient à 18h — il voyait le score en
+cours (par exemple Ukraine à 137) mais TOUS les objectifs neutres. Score
+avancé et carte vierge : ça a l'air cassé.
 
-LE POINT D'ARCHITECTURE
-Ton serveur ne fait que relayer, il ne simule rien. Si chaque client créait
-ses propres bots, à trois joueurs tu aurais trois jeux de bots à des
-positions différentes.
+Maintenant le serveur mémorise aussi les captures au passage de
+l'événement 'cap', et les remet à zéro sur 'reset'. Un joueur qui rejoint
+récupère le score ET la situation sur la carte.
 
-Un seul client est donc ÉLU HÔTE : le plus petit identifiant parmi les
-vrais joueurs connectés. C'est déterministe, donc tout le monde arrive à la
-même conclusion sans négociation. L'hôte simule les défenseurs et les
-diffuse en 'pos' avec des ids 'ai_*' — les autres clients les affichent
-comme des joueurs normaux, sans une seule ligne de rendu ajoutée.
-
-Si l'hôte quitte la partie, le joueur suivant reprend automatiquement la
-main sous 2 secondes et récupère les défenseurs déjà sur le terrain à
-partir de ce qu'il a reçu. La partie continue.
+Vérifié en test :
+  partie en cours -> {"UA":137,"RU":300,"caps":{"1":"UA","2":"UA","3":"RU"}}
+  après relance   -> {"UA":300,"RU":300,"caps":{}}
 
 
-LES DÉFENSEURS
-  - 3 par objectif capturé, du camp qui vient de le prendre
-  - placés entre 45 et 90 unités du point ; si le point est en tranchée,
-    ils s'y placent aussi
-  - AVANCENT vers l'ennemi au lieu de rester figés : c'était ton reproche
-    principal, les combats ne se bloquent plus à distance
-  - laisse de 155 unités : ils poursuivent, mais ne désertent jamais
-  - contournent les obstacles au lieu de rester coincés contre
-  - tir par rafales de 3 à 5 coups, puis pause
-  - reviennent tenir le point dès qu'il n'y a plus d'ennemi
-  - balaient du regard au repos, avec un décalage propre à chacun
-  - disparaissent si le camp adverse reprend le point
+RÉPONSE À TA QUESTION SUR LES BOTS
+Ils ne sont pas bugués, mais il faut savoir comment ils fonctionnent :
+ce sont des joueurs qui les simulent, pas le serveur. Tant qu'au moins
+une personne est connectée, le rôle passe de l'un à l'autre et tout suit.
 
-Vérifié en test : ennemi à 300 unités -> ils se rapprochent à 147, tirent
-35 fois ; ennemi très loin -> ils restent à 95 du point.
+Si le serveur est éveillé mais que PERSONNE n'est connecté, plus rien ne
+les simule : ils disparaissent. Un joueur qui arrive ensuite retrouve le
+score et les points capturés, mais pas les défenseurs — ils réapparaissent
+à la capture suivante.
 
-
-LES BRAVES
-Rien à réécrire : ton système compte déjà les kills via 'killedBy' sur
-l'événement 'died'. Les défenseurs émettent le même événement, donc tuer
-un bot rapporte exactement autant qu'un vrai joueur (+10), et le compteur
-Braves du menu se met à jour tout seul.
-
-
-LA PARTIE CONTINUE SANS TOI
-Quand une équipe tombe à 0 ticket, l'hôte diffuse maintenant l'événement
-'reset' à tous les clients après les 10 secondes d'écran de victoire. Avant,
-chaque client remettait ses tickets dans son coin ; si le joueur qui avait
-déclenché la victoire partait, les autres pouvaient rester désynchronisés.
-Les défenseurs sont retirés à la fin de manche.
+Ce n'est pas un bug, c'est la conséquence directe d'un serveur qui ne fait
+que relayer. Pour des bots qui survivent à zéro joueur connecté, il
+faudrait les simuler dans server.py — c'est un chantier à part, à décider
+plus tard. En attendant, le système tient parfaitement dès qu'il y a du
+monde, ce qui est le cas entre 16h et minuit.
 
 
 CONTENU
   index_kles.html      carte 1
   index_udachne.html   carte 2
   menu.html            menu web
-  server.py            avec la route /play
+  server.py            tickets + captures persistés, route /play
+  REVEIL_16h_00h.txt   la marche à suivre pour le réveil programmé
 
-À POUSSER SUR GITHUB : ces 4 fichiers. Render redéploie tout seul.
-
-
-UN BUG ATTRAPÉ AU TEST
-L'élection comparait les identifiants alphabétiquement sans vérifier leur
-format. Un identifiant mal formé pouvait rafler le rôle d'hôte et bloquer
-l'application des dégâts aux bots. L'élection ne retient plus que les
-identifiants de vrais joueurs.
-
-
-CE QUI N'EST PAS FAIT (volontairement, tu l'as mis de côté)
-  - les 10 bots de fond par carte (5 UA / 5 RU) et le remplacement de slot
-    quand un vrai joueur rejoint
-  - les bots autonomes qui prennent un véhicule pour aller capturer
-Ces deux morceaux reposent sur la même élection d'hôte, donc la base est
-déjà en place le jour où tu voudras les ajouter.
+À POUSSER SUR GITHUB : les 4 fichiers.

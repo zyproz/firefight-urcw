@@ -1,0 +1,52 @@
+GARDER LE SERVEUR ÉVEILLÉ DE 16h À MINUIT — GRATUITEMENT
+=========================================================
+
+LE CALCUL D'ABORD
+Render coupe TOUS tes services gratuits si tu dépasses 750 heures par mois,
+et ce plafond est partagé entre tous tes services, pas par service.
+
+  2 services × 8 h/jour × 30 jours = 480 heures
+  Plafond = 750 heures
+
+Tu es largement dans les clous, avec de la marge pour un troisième service.
+(À titre de comparaison : 2 services éveillés 24h/24 = 1460 heures, soit
+quota grillé en 15 jours et tout coupé jusqu'au mois suivant.)
+
+
+MISE EN PLACE — cron-job.org, gratuit, 5 minutes
+------------------------------------------------
+1. Crée un compte sur cron-job.org
+2. "Create cronjob"
+
+   JOB 1 — Klesivka
+     Title    : WarEast KLES
+     URL      : https://wareast-map-trench.onrender.com/ping
+     Schedule : Custom
+       Minutes : every 10 minutes
+       Hours   : 16,17,18,19,20,21,22,23
+       Days    : every day
+     Timezone : Europe/Brussels   ← important, sinon c'est en UTC
+
+   JOB 2 — Udachne
+     Title    : WarEast UDACHNE
+     URL      : https://map-3-s025.onrender.com/ping
+     (mêmes réglages)
+
+3. Enregistre. Vérifie après 10 minutes que "Last execution" est au vert.
+
+
+POURQUOI /ping ET PAS LA PAGE D'ACCUEIL
+L'endpoint /ping existe déjà dans ton server.py et renvoie 16 octets.
+Pinger la page du jeu ferait transiter 11 Mo à chaque fois, pour rien.
+
+POURQUOI 10 MINUTES
+Render endort après 15 minutes d'inactivité. Toutes les 10 minutes laisse
+une marge confortable. Descendre à 5 minutes ne change rien au résultat et
+consomme exactement autant d'heures.
+
+À 16h00 le premier ping réveille le service : compte ~50 secondes avant
+qu'il réponde. À partir de 16h01 tout est chaud jusqu'à minuit.
+
+
+PENSE À SUPPRIMER L'ANCIEN SERVICE AVDIIVKA
+S'il tourne encore, il pioche dans le même pot de 750 heures.
