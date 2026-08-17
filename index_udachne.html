@@ -3625,7 +3625,7 @@ function netConnect(){
       myBots.forEach(bot=>{
         socket.emit('pos',{id:bot.id,name:bot.name||'Renfort',x:bot.x,y:bot.y,dir:bot.dir,
           team:myTeam,cls:bot.cls||myCls,hp:bot.hp,dead:bot.hp<=0,inVeh:bot.inVehSeat,
-          moving:bot.state==='follow',wfr:bot.walkFr||0,sfr:bot.shootFr||0,reg:myRegiment,tape:myTape,isBot:true,ownerId:myId});
+          moving:bot.isMoving||false,wfr:bot.walkFr||0,sfr:bot.shootFr||0,reg:myRegiment,tape:myTape,isBot:true,ownerId:myId});
       });
     },80);
     socket.emit('pos',{id:myId,name:myName,x:px,y:py,dir:pdir,team:myTeam,cls:myCls,hp:php,dead:false,reg:myRegiment,tape:myTape});
@@ -3919,22 +3919,24 @@ function drawFOVOverlay(){
   let sx=px-camX,sy=py-camY;
   ctx.save();
   ctx.globalCompositeOperation='source-over';
+  // V pur : pointe sur le joueur, aucun cercle. Assombrissement leger
+  // pour ne pas genrer le jeu — on doit rester capable de lire le terrain.
+  let LONG=Math.hypot(W,H)*1.4;   // deborde toujours de l'ecran
   ctx.beginPath();
   ctx.rect(0,0,W,H);
   ctx.moveTo(sx,sy);
-  ctx.arc(sx,sy,FOV_PORTEE,pdir-FOV_DEMI_ANGLE,pdir+FOV_DEMI_ANGLE);
+  ctx.lineTo(sx+Math.cos(pdir-FOV_DEMI_ANGLE)*LONG,sy+Math.sin(pdir-FOV_DEMI_ANGLE)*LONG);
+  ctx.lineTo(sx+Math.cos(pdir+FOV_DEMI_ANGLE)*LONG,sy+Math.sin(pdir+FOV_DEMI_ANGLE)*LONG);
   ctx.closePath();
-  ctx.moveTo(sx+FOV_PERCEPTION,sy);
-  ctx.arc(sx,sy,FOV_PERCEPTION,0,Math.PI*2,true);
-  ctx.fillStyle='rgba(0,0,0,0.55)';
+  ctx.fillStyle='rgba(0,0,0,0.30)';
   ctx.fill('evenodd');
   // liseres du cone
+  // les deux branches du V
   ctx.beginPath();
-  ctx.moveTo(sx,sy);
-  ctx.lineTo(sx+Math.cos(pdir-FOV_DEMI_ANGLE)*FOV_PORTEE,sy+Math.sin(pdir-FOV_DEMI_ANGLE)*FOV_PORTEE);
-  ctx.moveTo(sx,sy);
-  ctx.lineTo(sx+Math.cos(pdir+FOV_DEMI_ANGLE)*FOV_PORTEE,sy+Math.sin(pdir+FOV_DEMI_ANGLE)*FOV_PORTEE);
-  ctx.strokeStyle='rgba(200,255,90,0.13)';ctx.lineWidth=1.5;ctx.stroke();
+  ctx.moveTo(sx+Math.cos(pdir-FOV_DEMI_ANGLE)*LONG,sy+Math.sin(pdir-FOV_DEMI_ANGLE)*LONG);
+  ctx.lineTo(sx,sy);
+  ctx.lineTo(sx+Math.cos(pdir+FOV_DEMI_ANGLE)*LONG,sy+Math.sin(pdir+FOV_DEMI_ANGLE)*LONG);
+  ctx.strokeStyle='rgba(200,255,90,0.10)';ctx.lineWidth=1.5;ctx.stroke();
   ctx.restore();
 }
 function drawPlayers(){
@@ -3979,7 +3981,7 @@ function drawPlayers(){
     let sx=bot.x-camX,sy=bot.y-camY;
     if(Math.abs(sx)>W+50||Math.abs(sy)>H+50)return;
     drawSoldierSprite(sx,sy,bot.dir,myTeam,bot.cls||myCls,true,bot.name||'Renfort',bot.hp,false,
-      bot.state==='follow',bot.state==='combat',false,false,bot.walkFr||0,bot.shootFr||0,0,myTape,myRegiment);
+      bot.isMoving||false,(bot.shootHold||0)>0,false,false,bot.walkFr||0,bot.shootFr||0,0,myTape,myRegiment);
   });
   // Local drone (drawn by drawDroneFPV)
   // Remote drones
@@ -4804,17 +4806,6 @@ function buyReinforcements(){
 }
 function updateBots(dt){
   if(!myBots.length)return;
-  myBots.forEach(b=>{
-    if(b.walkT===undefined){b.walkT=0;b.walkFr=~~(Math.random()*12);b.shootT=0;b.shootFr=0;}
-    if(b.hp>0&&b.state==='follow'){
-      b.walkT+=dt;
-      if(b.walkT>1/WALK_FPS){b.walkT-=1/WALK_FPS;b.walkFr=(b.walkFr+1)%12;}
-    }
-    if(b.hp>0&&b.state==='combat'){
-      b.shootT+=dt;
-      if(b.shootT>1/12){b.shootT-=1/12;b.shootFr=(b.shootFr+1)%4;}
-    }else{b.shootFr=0;}
-  });
   // Point de suivi "retarde" (lissage exponentiel) - cree le petit temps de latence naturel
   if(_botLagPx===null){_botLagPx=px;_botLagPy=py;}
   _botLagPx+=(px-_botLagPx)*Math.min(1,dt*2.2);
@@ -4867,7 +4858,7 @@ function updateBots(dt){
       }
       bot.fireT-=dt;
       if(bot.fireT<=0){
-        bot.fireT=0.5+Math.random()*0.4;
+        bot.fireT=0.5+Math.random()*0.4;bot.shootHold=0.26;
         let spread=(Math.random()-0.5)*0.34;
         let ang=bot.dir+spread;
         let bwpn=WPN[botWpn]||WPN.AK74M;
@@ -4879,27 +4870,43 @@ function updateBots(dt){
       }
     } else {
       bot.state='follow';
-      if(typeof _escortTrench!=='undefined'&&_escortTrench&&typeof findNearestInTrench==='function'){
-        let wantX=px+Math.cos(pdir)*(bi%2===0?55:-55);
-        let wantY=py+Math.sin(pdir)*(bi%2===0?55:-55);
-        let spot=findNearestInTrench(wantX,wantY,140)||{x:_botLagPx,y:_botLagPy};
-        let dd2=Math.hypot(spot.x-bot.x,spot.y-bot.y);
-        if(dd2>3){
-          bot.dir=Math.atan2(spot.y-bot.y,spot.x-bot.x);
-          let spd2=Math.min(botSpd,dd2/dt);
-          mvx=Math.cos(bot.dir)*spd2;mvy=Math.sin(bot.dir)*spd2;
+      // Ancrage MONDE : l'angle du bot ne depend plus de l'orientation du
+      // joueur, donc tourner sur soi-meme ne fait plus pivoter l'escouade.
+      if(bot.wAng===undefined){bot.wAng=Math.random()*Math.PI*2;bot.wDist=45+Math.random()*32;}
+      bot.wAng+=(Math.random()-0.5)*dt*0.55;
+      bot.wDist=Math.max(34,Math.min(88,bot.wDist+(Math.random()-0.5)*dt*15));
+
+      let distJ=Math.hypot(px-bot.x,py-bot.y);
+      const R_OK=90, R_MAX=140;
+
+      if(distJ>R_OK){
+        // trop loin : il rejoint un point autour du joueur, en suivant la
+        // tranchee si on est dedans
+        let tx=px+Math.cos(bot.wAng)*bot.wDist;
+        let ty=py+Math.sin(bot.wAng)*bot.wDist;
+        if(_escortTrench&&typeof findNearestInTrench==='function'){
+          let spot=findNearestInTrench(tx,ty,220);
+          if(spot){tx=spot.x;ty=spot.y;}
+        }
+        let dd=Math.hypot(tx-bot.x,ty-bot.y);
+        if(dd>12){
+          // joueur et bot ont la meme vitesse de base : sans coup de collier
+          // un bot decroche et ne revient jamais. Au-dela de 250 il accelere.
+          let urgence=distJ>250?1.35:(distJ>R_MAX?1:0.6);
+          bot.dir=Math.atan2(ty-bot.y,tx-bot.x);
+          let spd=Math.min(botSpd*urgence,dd/dt);
+          mvx=Math.cos(bot.dir)*spd;mvy=Math.sin(bot.dir)*spd;
         }
       } else {
-      bot.offAng+=(Math.random()-0.5)*dt*0.4;
-      bot.offDist=Math.max(30,Math.min(65,bot.offDist+(Math.random()-0.5)*dt*10));
-      let baseAng=pdir+Math.PI+bot.offAng;
-      let tx=_botLagPx+Math.cos(baseAng)*bot.offDist,ty=_botLagPy+Math.sin(baseAng)*bot.offDist;
-      let dd=Math.hypot(tx-bot.x,ty-bot.y);
-      if(dd>10){
-        bot.dir=Math.atan2(ty-bot.y,tx-bot.x);
-        let spd=Math.min(botSpd,dd/dt);
-        mvx=Math.cos(bot.dir)*spd;mvy=Math.sin(bot.dir)*spd;
-      }
+        // assez pres : il TIENT SA POSITION. Il se contente de balayer du
+        // regard, avec un decalage propre a chaque bot et reevalue de temps
+        // en temps -> plus de pose identique pour toute l'escouade.
+        if(bot.lookOff===undefined){bot.lookOff=(Math.random()-0.5)*1.2;bot.lookT=Math.random()*2;}
+        bot.lookT=(bot.lookT||0)+dt;
+        if(bot.lookT>1.6+Math.random()*1.8){bot.lookT=0;bot.lookOff=(Math.random()-0.5)*1.5;}
+        let want=pdir+bot.lookOff;
+        let diff=((want-bot.dir+Math.PI*3)%(Math.PI*2))-Math.PI;
+        bot.dir+=diff*Math.min(1,dt*2);
       }
     }
     // Deplacement avec collision batiments (glissement par axe, comme le joueur)
@@ -4908,6 +4915,19 @@ function updateBots(dt){
       if(!isBlocked(nx,bot.y))bot.x=Math.max(8,Math.min(WW-8,nx));
       if(!isBlocked(bot.x,ny))bot.y=Math.max(8,Math.min(WH-8,ny));
     }
+    // Animation calee sur le deplacement reel, comme le joueur :
+    // a l'arret -> pose arme, en mouvement -> cycle de marche.
+    if(bot.walkT===undefined){bot.walkT=0;bot.walkFr=~~(Math.random()*12);bot.shootT=0;bot.shootFr=0;}
+    bot.isMoving=Math.hypot(mvx,mvy)>8;
+    if(bot.isMoving){
+      bot.walkT+=dt;
+      if(bot.walkT>1/WALK_FPS){bot.walkT-=1/WALK_FPS;bot.walkFr=(bot.walkFr+1)%12;}
+    }else{bot.walkT=0;bot.walkFr=0;}
+    bot.shootHold=Math.max(0,(bot.shootHold||0)-dt);
+    if(bot.shootHold>0){
+      bot.shootT+=dt;
+      if(bot.shootT>1/12){bot.shootT-=1/12;bot.shootFr=(bot.shootFr+1)%4;}
+    }else{bot.shootFr=0;}
   });
 }
 let _targetMode=null,_targetX=null,_targetY=null;
